@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: blood-spot-bot-api
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+
+telegram:
+  bot:
+      name: BloodDonationsSpotterBot
+      token: ${BOT_TOKEN}
+
+donor-source:
+  base-url: ${BASE_URL}
+  valid-location: ${VALID_URL}
+
+commands:
+  menus:
+    start:
+      text: "👋 Привет! Я бот по донорству крови."
+      buttons:
+        - label: "Авторизуйтесь"
+          callback: "/auth"
+    auth:
+      text: "🛂 Введите логин и пароль через пробел"
+      buttons:
+        - label: "Вернуться на главную"
+          callback: "/start"
+    main:
+      text: "*%s*, добро пожаловать в бот‑парсер сайта донорства! 🩸\n\n_Ваша подписка:_ *%s*"
+      buttons:
+        - label: "Подписка вкл/выкл"
+          callback: "/subscribe"
+    authError:
+      text: "❌ Ошибка авторизации. Проверьте логин и пароль и попробуйте снова."
+      buttons:
+        - label: "Вернуться на главную"
+          callback: "/start"
+    newSpotsFound:
+      text: "
+        🩸 *Найдены новые окна для записи!* \n %s Проверьте доступные даты и не упустите шанс помочь 💖"
+      buttons:
+        - label: "Главное меню"
+          callback: ${VALID_URL}
