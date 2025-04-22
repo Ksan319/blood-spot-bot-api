@@ -1,8 +1,23 @@
-FROM openjdk:21-jdk-slim
+# Используем Gradle + JDK образ
+FROM gradle:8.5.0-jdk21 AS builder
+
 WORKDIR /app
 
-COPY build/libs/blood-spot-bot-api-0.0.1-SNAPSHOT.jar app.jar
+# Копируем весь проект
+COPY . .
 
-LABEL authors="admin"
+# Собираем jar (без тестов для скорости)
+RUN gradle bootJar -x test
+
+# ========================================
+# Финальный образ
+FROM openjdk:21-jdk-slim
+
+WORKDIR /app
+
+# Копируем jar из предыдущего этапа
+COPY --from=builder /app/build/libs/*.jar app.jar
+
+EXPOSE 8080
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
