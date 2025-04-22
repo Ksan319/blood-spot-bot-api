@@ -43,7 +43,7 @@ public class SpotDonationJob {
     /**
      * Джоба, запускается каждый час для всех юзеров
      */
-    @Scheduled(cron = "0 * * * * *")
+    @Scheduled(cron = "0 */15 * * * *")
     public void pollAllUsers() {
         List<User> users = userRepository.findBySubscribed(true).orElse(List.of());
         List<User> subscribedUsers = users.stream().filter(User::isSubscribed).toList();
