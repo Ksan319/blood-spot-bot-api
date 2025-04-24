@@ -23,7 +23,7 @@ public class User {
 
     private boolean active;
 
-    private boolean subscribed;
+    private boolean subscribed = true;
 
     public User() {
 

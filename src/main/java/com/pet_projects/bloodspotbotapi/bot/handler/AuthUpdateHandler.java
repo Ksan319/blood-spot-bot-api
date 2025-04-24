@@ -52,7 +52,6 @@ public class AuthUpdateHandler implements UpdateHandler {
             if (authService.isCredentialValid(username, password)) {
                 userService.saveOrUpdate(chatId, username, password);
                 stateStorage.clearState(chatId);
-                sendText(chatId, "✅ Успешно авторизованы!", null);
                 mainCommand.process(chatId, update);
             } else {
                 menuDispatcher.sendMenu("authError", chatId, update);

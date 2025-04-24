@@ -19,8 +19,10 @@ public class MenuService {
     public InlineKeyboardMarkup getButtons(String key, Object... args){
         CustomKeyBoardBuilder customKeyBoardBuilder = new CustomKeyBoardBuilder();
         BotMenuProperties.Menu menu = props.getMenus().get(key);
-        for (BotMenuProperties.Button button : menu.getButtons()) {
-            customKeyBoardBuilder.button(button.getLabel(), button.getCallBack());
+        if (menu.getButtons() != null) {
+            for (BotMenuProperties.Button button : menu.getButtons()) {
+                customKeyBoardBuilder.button(button.getLabel(), button.getCallBack());
+            }
         }
         return customKeyBoardBuilder.build();
     }
