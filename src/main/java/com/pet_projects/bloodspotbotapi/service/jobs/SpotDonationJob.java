@@ -11,6 +11,7 @@ import com.pet_projects.bloodspotbotapi.service.dto.SpotDTO;
 import com.pet_projects.bloodspotbotapi.service.session.CookieSessionManager;
 import com.pet_projects.bloodspotbotapi.utils.SpotUtils;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.jsoup.Jsoup;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
+@Log4j2
 @RequiredArgsConstructor
 public class SpotDonationJob {
 
@@ -45,18 +47,22 @@ public class SpotDonationJob {
      */
     @Scheduled(cron = "0 */15 * * * *")
     public void pollAllUsers() {
+        log.info("Starting scheduled polling of subscribed users...");
         List<User> users = userRepository.findBySubscribed(true).orElse(List.of());
         List<User> subscribedUsers = users.stream().filter(User::isSubscribed).toList();
+        log.info("Found {} subscribed users to poll", subscribedUsers.size());
         for (User u : subscribedUsers) {
+            log.info("Start searching spots for user: {}", u.getEmail());
             try {
                 String html = fetchSpotsFor(u);
                 List<SpotDTO> findSpots = SpotUtils.getSpots(Jsoup.parse(html).getElementsByClass("dates-table__item table-item"));
                 spotService.saveNewSpots(findSpots, u);
                 newSpotHandler.sendNewSpots(u);
-                System.out.printf("%s → Найдено спотов %d", u.getEmail(), findSpots.size());
+                log.info("User {} → Found {} new spots", u.getEmail(), findSpots.size());
             } catch (Exception e) {
-                System.err.printf("Error for %s: %s%n", u.getEmail(), e.getMessage());
+                log.error("Error while processing user {}: {}", u.getEmail(), e.getMessage(), e);
             }
         }
+        log.info("Scheduled polling completed.");
     }
 }
