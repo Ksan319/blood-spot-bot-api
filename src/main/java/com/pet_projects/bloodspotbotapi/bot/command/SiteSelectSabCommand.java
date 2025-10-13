@@ -37,7 +37,7 @@ public class SiteSelectSabCommand implements BotCommand {
             mainCommand.process(chatId, update);
         } else {
             userStateStorage.setState(chatId, UserState.AWAITING_AUTH_CREDENTIALS);
-            menuDispatcher.sendMenu("auth", chatId, update);
+            menuDispatcher.sendMenu("auth", chatId, update, UserSite.DONOR_MOS_SAB.getBaseUrl());
         }
     }
 }
