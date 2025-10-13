@@ -4,6 +4,7 @@ import com.pet_projects.bloodspotbotapi.bot.handler.MenuDispatcher;
 import com.pet_projects.bloodspotbotapi.bot.keyboard.CustomKeyBoardBuilder;
 import com.pet_projects.bloodspotbotapi.client.TelegramClientWrapper;
 import com.pet_projects.bloodspotbotapi.model.User;
+import com.pet_projects.bloodspotbotapi.model.UserSite;
 import com.pet_projects.bloodspotbotapi.repository.UserRepository;
 import com.pet_projects.bloodspotbotapi.service.session.UserState;
 import com.pet_projects.bloodspotbotapi.service.session.UserStateStorage;
@@ -34,7 +35,7 @@ public class AuthCommand implements BotCommand {
     @Override
     public void process(Long chatId, Update update) throws TelegramApiException {
         User user = userRepository.findById(chatId).get();
-        menuDispatcher.sendMenu("auth", chatId, update, user.getSite());
+        menuDispatcher.sendMenu("auth", chatId, update, user.getSite().getBaseUrl());
         userStateStorage.setState(chatId, UserState.AWAITING_AUTH_CREDENTIALS);
     }
 
