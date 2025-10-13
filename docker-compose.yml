@@ -11,6 +11,10 @@ services:
     depends_on:
       - db
     restart: "always"
+    develop:
+      watch:
+        - action: rebuild
+          path: .
 
   db:
     image: postgres:15
@@ -25,4 +29,3 @@ services:
       - "5432:5432"
 volumes:
   pgdata:
-

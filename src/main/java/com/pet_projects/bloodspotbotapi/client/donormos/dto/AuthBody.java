@@ -13,5 +13,5 @@ public class AuthBody {
     @Builder.Default
     private String wpSubmit = "";
     @Builder.Default
-    private String redirect_to = "https://donor-mos.online/account/";
+    private String redirect_to = "";
 }

@@ -1,8 +1,6 @@
 package com.pet_projects.bloodspotbotapi.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -24,6 +22,10 @@ public class User {
     private boolean active;
 
     private boolean subscribed = true;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "site")
+    private UserSite site;
 
     public User() {
 

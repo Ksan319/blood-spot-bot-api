@@ -21,7 +21,13 @@ public class MenuService {
         BotMenuProperties.Menu menu = props.getMenus().get(key);
         if (menu.getButtons() != null) {
             for (BotMenuProperties.Button button : menu.getButtons()) {
-                customKeyBoardBuilder.button(button.getLabel(), button.getCallBack());
+                String callback = button.getCallBack();
+                try {
+                    callback = String.format(callback, args);
+                } catch (Exception ignored) {
+                    // если форматирование не требуется или формат некорректен — оставляем как есть
+                }
+                customKeyBoardBuilder.button(button.getLabel(), callback);
             }
         }
         return customKeyBoardBuilder.build();

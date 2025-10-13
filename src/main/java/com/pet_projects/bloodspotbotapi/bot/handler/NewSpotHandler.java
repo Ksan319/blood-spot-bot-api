@@ -33,7 +33,8 @@ public class NewSpotHandler {
             }
 
             log.info("spot text {}", spotText.toString());
-            menuDispatcher.sendMenu("newSpotsFound", user.getId(), new Update(), spotText.toString());
+            String siteUrl = (user.getSite() != null ? user.getSite().getValidLocation() : "https://donor-mos.online/account/");
+            menuDispatcher.sendMenu("newSpotsFound", user.getId(), new Update(), spotText.toString(), siteUrl);
             spotService.markSpotIsSent(actualSpots);
         }
     }
