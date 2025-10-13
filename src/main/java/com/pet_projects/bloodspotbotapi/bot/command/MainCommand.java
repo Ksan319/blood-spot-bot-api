@@ -34,7 +34,13 @@ public class MainCommand implements BotCommand{
     public void process(Long chatId, Update update) {
         User user = userRepository.findById(chatId).get();
         String subscribeState = user.isSubscribed() ? "✅ Подписка активна" : "❌ Подписка не активна";
-        menuDispatcher.sendMenu("main", chatId, update, user.getEmail(), subscribeState);
+        String siteLabel;
+        if (user.getSite() != null) {
+            siteLabel = user.getSite().getDisplayName() + " — " + user.getSite().getValidLocation();
+        } else {
+            siteLabel = "Поликарпова — https://donor-mos.online/account/";
+        }
+        menuDispatcher.sendMenu("main", chatId, update, user.getEmail(), subscribeState, siteLabel);
     }
 
 }

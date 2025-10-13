@@ -49,7 +49,7 @@ public class AuthUpdateHandler implements UpdateHandler {
         String password = parts[1];
 
         try {
-            if (authService.isCredentialValid(username, password)) {
+            if (authService.isCredentialValid(chatId, username, password)) {
                 userService.saveOrUpdate(chatId, username, password);
                 stateStorage.clearState(chatId);
                 mainCommand.process(chatId, update);
