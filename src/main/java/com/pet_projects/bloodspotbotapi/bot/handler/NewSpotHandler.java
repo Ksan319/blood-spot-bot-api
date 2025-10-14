@@ -22,9 +22,10 @@ public class NewSpotHandler {
 
     @SneakyThrows
     public void sendNewSpots(User user) {
-        log.info("Sending new spots for {}", user.getEmail());
+        log.info("Sending new spots for {} (id={})", user.getEmail(), user.getId());
         List<Spot> actualSpots = spotService.getSpotsForUser(user);
         if (!actualSpots.isEmpty()) {
+            log.info("Unsent spots count for {}: {}", user.getEmail(), actualSpots.size());
             StringBuilder spotText = new StringBuilder();
             spotText.append("\n");
             for (Spot spot : actualSpots) {
@@ -36,6 +37,9 @@ public class NewSpotHandler {
             String siteUrl = (user.getSite() != null ? user.getSite().getValidLocation() : "https://donor-mos.online/account/");
             menuDispatcher.sendMenu("newSpotsFound", user.getId(), new Update(), spotText.toString(), siteUrl);
             spotService.markSpotIsSent(actualSpots);
+            log.info("Notification sent for {} dates to user {}", actualSpots.size(), user.getEmail());
+        } else {
+            log.info("No unsent spots for user {}. Nothing to notify.", user.getEmail());
         }
     }
 }

@@ -35,10 +35,15 @@ public class SpotDonationJob {
     public String fetchSpotsFor(User user) {
         String cookieHeader = sessionManager.getCookieHeader(user);
         String baseUrl = user.getSite() != null ? user.getSite().getBaseUrl() : "https://donor-mos.online";
+        log.info("Fetching spots: user={}, id={}, baseUrl={}", user.getEmail(), user.getId(), baseUrl);
         ResponseEntity<String> resp = donorMosClient.getSpotsWithCookie(cookieHeader, baseUrl);
         if (resp.getStatusCode().is2xxSuccessful()) {
-            return resp.getBody();
+            String body = resp.getBody();
+            int len = body != null ? body.length() : 0;
+            log.info("Fetched spots OK: user={}, status={}, bodyLen={}", user.getEmail(), resp.getStatusCode(), len);
+            return body;
         }
+        log.warn("Failed to fetch spots: user={}, status={}", user.getEmail(), resp.getStatusCode());
         throw new RuntimeException("Failed to fetch spots, status=" + resp.getStatusCode());
     }
 
@@ -46,20 +51,22 @@ public class SpotDonationJob {
     /**
      * Джоба, запускается каждый час для всех юзеров
      */
-    @Scheduled(cron = "0 */15 * * * *")
+    @Scheduled(cron = "0 */10 * * * *")
     public void pollAllUsers() {
         log.info("Starting scheduled polling of subscribed users...");
         List<User> users = userRepository.findBySubscribed(true).orElse(List.of());
         List<User> subscribedUsers = users.stream().filter(User::isSubscribed).toList();
         log.info("Found {} subscribed users to poll", subscribedUsers.size());
         for (User u : subscribedUsers) {
-            log.info("Start searching spots for user: {}", u.getEmail());
+            log.info("Polling user start: {} (id={})", u.getEmail(), u.getId());
             try {
                 String html = fetchSpotsFor(u);
-                List<SpotDTO> findSpots = SpotUtils.getSpots(Jsoup.parse(html).getElementsByClass("dates-table__item table-item"));
+                var elements = Jsoup.parse(html).getElementsByClass("dates-table__item table-item");
+                List<SpotDTO> findSpots = SpotUtils.getSpots(elements);
+                log.info("Parsed page: user={}, nodesFound={}, spotDatesExtracted={}", u.getEmail(), elements.size(), findSpots.size());
                 spotService.saveNewSpots(findSpots, u);
                 newSpotHandler.sendNewSpots(u);
-                log.info("User {} → Found {} new spots", u.getEmail(), findSpots.size());
+                log.info("Polling user done: {} (id={})", u.getEmail(), u.getId());
             } catch (Exception e) {
                 log.error("Error while processing user {}: {}", u.getEmail(), e.getMessage(), e);
             }
