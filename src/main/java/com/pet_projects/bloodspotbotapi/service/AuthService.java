@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.net.HttpCookie;
 import java.util.*;
 import java.util.stream.Collectors;
+import com.pet_projects.bloodspotbotapi.service.exception.AuthFailedException;
 
 @Service
 @RequiredArgsConstructor
@@ -66,15 +67,30 @@ public class AuthService {
                         .collect(java.util.stream.Collectors.toList()));
 
         String expectedLocation = redirectTo;
+        String actualLocation = response.getHeaders().getLocation() != null
+                ? response.getHeaders().getLocation().toString()
+                : null;
+
+        // Success: explicit match to expected redirect
         if (response.getStatusCode() == HttpStatus.FOUND
-                && response.getHeaders().getLocation() != null
-                && response.getHeaders().getLocation().toString().equals(expectedLocation)) {
+                && actualLocation != null
+                && actualLocation.equals(expectedLocation)) {
             return true;
+        }
+
+        // Explicit unsuccessful auth: redirected within our site but not to expected location
+        if (response.getStatusCode() == HttpStatus.FOUND
+                && actualLocation != null
+                && actualLocation.startsWith(baseUrl)
+                && !actualLocation.equals(expectedLocation)) {
+            log.warn("Unsuccessful auth redirect: expected={}, actual={}", expectedLocation, actualLocation);
+            return false;
         }
 
         // Fallback: check account page with cookies
         ResponseEntity<String> accountResp = donorMosOnlineClient.getSpotsWithCookie(cookies, baseUrl);
-        return accountResp.getStatusCode().is2xxSuccessful();
+        // Conservative: don't treat as success unless explicit redirect matched
+        return false;
     }
 
     public ResponseEntity<String> processAuth(String username, String password, UserSite site) {
@@ -107,6 +123,54 @@ public class AuthService {
         log.info("Auth response: status={}, location={}, setCookieNames={}",
                 response.getStatusCode(), location, cookieNames);
         return response;
+    }
+
+    public String getCookieHeader(User user) {
+        UserSite site = user.getSite() != null ? user.getSite() : UserSite.DONOR_MOS;
+        String baseUrl = site.getBaseUrl();
+        String expectedLocation = site.getValidLocation();
+
+        String cookies = donorMosOnlineClient.preflightAcquireCookies(baseUrl);
+
+        ResponseEntity<String> authResp = donorMosOnlineClient.authWithCookies(
+                AuthBody.builder()
+                        .log(user.getEmail())
+                        .pwd(user.getPassword())
+                        .redirect_to(expectedLocation)
+                        .build(),
+                baseUrl,
+                cookies
+        );
+
+        cookies = mergeCookieHeader(cookies, authResp);
+
+        String actual = authResp.getHeaders().getLocation() != null
+                ? authResp.getHeaders().getLocation().toString()
+                : null;
+
+        // Success only if exact expected redirect
+        if (authResp.getStatusCode() == HttpStatus.FOUND
+                && actual != null
+                && expectedLocation.equals(actual)) {
+            return cookies;
+        }
+
+        // Explicit unsuccessful auth when redirected within our site but not to expected
+        if (authResp.getStatusCode() == HttpStatus.FOUND
+                && actual != null
+                && actual.startsWith(baseUrl)
+                && !expectedLocation.equals(actual)) {
+            throw new AuthFailedException(
+                    "Auth unsuccessful: redirected to unexpected page within site. expectedLocation="
+                            + expectedLocation + ", actualLocation=" + actual);
+        }
+
+        throw new IllegalStateException(
+                "Auth failed for user " + user.getEmail() +
+                        ", status=" + authResp.getStatusCode() +
+                        ", expectedLocation=" + expectedLocation +
+                        ", actualLocation=" + actual
+        );
     }
 
     private static String mergeCookieHeader(String existingCookieHeader, ResponseEntity<?> response) {

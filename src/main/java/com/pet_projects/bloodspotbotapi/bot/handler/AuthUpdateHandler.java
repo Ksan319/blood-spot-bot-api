@@ -62,6 +62,15 @@ public class AuthUpdateHandler implements UpdateHandler {
         }
     }
 
+    // Public helper to notify user about auth error from other flows (e.g., jobs)
+    public void notifyAuthError(Long chatId) {
+        try {
+            menuDispatcher.sendMenu("authError", chatId, new Update());
+        } catch (Exception e) {
+            log.error("Failed to notify auth error to user {}: {}", chatId, e.getMessage(), e);
+        }
+    }
+
     @Override
     public boolean supports(Update update) {
         Long chatId = TelegramUpdateUtils.getChatId(update);

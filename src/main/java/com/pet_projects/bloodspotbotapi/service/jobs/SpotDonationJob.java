@@ -1,5 +1,6 @@
 package com.pet_projects.bloodspotbotapi.service.jobs;
 
+import com.pet_projects.bloodspotbotapi.bot.handler.AuthUpdateHandler;
 import com.pet_projects.bloodspotbotapi.bot.handler.NewSpotHandler;
 import com.pet_projects.bloodspotbotapi.client.donormos.DonorMosOnlineClient;
 import com.pet_projects.bloodspotbotapi.model.Spot;
@@ -7,6 +8,8 @@ import com.pet_projects.bloodspotbotapi.model.User;
 import com.pet_projects.bloodspotbotapi.repository.SpotRepository;
 import com.pet_projects.bloodspotbotapi.repository.UserRepository;
 import com.pet_projects.bloodspotbotapi.service.SpotService;
+import com.pet_projects.bloodspotbotapi.service.UserService;
+import com.pet_projects.bloodspotbotapi.service.exception.AuthFailedException;
 import com.pet_projects.bloodspotbotapi.service.dto.SpotDTO;
 import com.pet_projects.bloodspotbotapi.service.session.CookieSessionManager;
 import com.pet_projects.bloodspotbotapi.utils.SpotUtils;
@@ -29,6 +32,8 @@ public class SpotDonationJob {
     private final UserRepository userRepository;
     private final SpotService spotService;
     private final NewSpotHandler newSpotHandler;
+    private final UserService userService;
+    private final AuthUpdateHandler authUpdateHandler;
     /**
      * Для каждого юзера делает auth + getSpots
      */
@@ -51,7 +56,7 @@ public class SpotDonationJob {
     /**
      * Джоба, запускается каждый час для всех юзеров
      */
-    @Scheduled(cron = "0 */10 * * * *")
+    @Scheduled(cron = "0 */5 * * * *")
     public void pollAllUsers() {
         log.info("Starting scheduled polling of subscribed users...");
         List<User> users = userRepository.findBySubscribed(true).orElse(List.of());
@@ -67,6 +72,10 @@ public class SpotDonationJob {
                 spotService.saveNewSpots(findSpots, u);
                 newSpotHandler.sendNewSpots(u);
                 log.info("Polling user done: {} (id={})", u.getEmail(), u.getId());
+            } catch (AuthFailedException e) {
+                log.warn("Auth failed for user {} (id={}), notifying and logging out: {}", u.getEmail(), u.getId(), e.getMessage());
+                authUpdateHandler.notifyAuthError(u.getId());
+                userService.deleteUser(u.getId());
             } catch (Exception e) {
                 log.error("Error while processing user {}: {}", u.getEmail(), e.getMessage(), e);
             }

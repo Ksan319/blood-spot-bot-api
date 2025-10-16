@@ -5,6 +5,7 @@ import com.pet_projects.bloodspotbotapi.bot.keyboard.CustomKeyBoardBuilder;
 import com.pet_projects.bloodspotbotapi.client.TelegramClientWrapper;
 import com.pet_projects.bloodspotbotapi.model.User;
 import com.pet_projects.bloodspotbotapi.repository.UserRepository;
+import com.pet_projects.bloodspotbotapi.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -19,6 +20,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 public class MainCommand implements BotCommand{
     private final UserRepository userRepository;
     private final MenuDispatcher menuDispatcher;
+    private final AuthService authService;
 
     @Override
     public String command() {
@@ -33,6 +35,10 @@ public class MainCommand implements BotCommand{
     @Override
     public void process(Long chatId, Update update) {
         User user = userRepository.findById(chatId).get();
+        if (!authService.isCredentialValid(user.getId(), user.getEmail(), user.getPassword())){
+            menuDispatcher.sendMenu("authError", user.getId(), new Update());
+            return;
+        }
         String subscribeState = user.isSubscribed() ? "✅ Подписка активна" : "❌ Подписка не активна";
         String siteLabel;
         if (user.getSite() != null) {
