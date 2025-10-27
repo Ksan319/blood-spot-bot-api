@@ -39,7 +39,7 @@ public class AuthService {
         String baseUrl = site != null ? site.getBaseUrl() : "https://donor-mos.online";
         String redirectTo = site != null ? site.getValidLocation() : validLocation;
 
-        log.info("Auth attempt: site={}, baseUrl={}, redirectTo={} (user={})",
+        log.debug("Auth attempt: site={}, baseUrl={}, redirectTo={} (user={})",
                 site, baseUrl, redirectTo, username);
 
         String cookies = donorMosOnlineClient.preflightAcquireCookies(baseUrl);
@@ -59,7 +59,7 @@ public class AuthService {
         String location = response.getHeaders().getLocation() != null
                 ? response.getHeaders().getLocation().toString()
                 : null;
-        log.info("Auth response: status={}, location={}, setCookieNames={}",
+        log.debug("Auth response: status={}, location={}, setCookieNames={}",
                 response.getStatusCode(), location,
                 response.getHeaders().getOrEmpty(org.springframework.http.HttpHeaders.SET_COOKIE).stream()
                         .map(h -> h.split(";", 2)[0])
@@ -97,7 +97,7 @@ public class AuthService {
         String redirectTo = site != null ? site.getValidLocation() : validLocation;
         String baseUrl = site != null ? site.getBaseUrl() : "https://donor-mos.online";
 
-        log.info("Auth attempt: site={}, baseUrl={}, redirectTo={} (user={})",
+        log.debug("Auth attempt: site={}, baseUrl={}, redirectTo={} (user={})",
                 site, baseUrl, redirectTo, username);
 
         String cookies = donorMosOnlineClient.preflightAcquireCookies(baseUrl);
@@ -120,7 +120,7 @@ public class AuthService {
                 .map(kv -> kv.split("=", 2)[0])
                 .collect(Collectors.toList());
 
-        log.info("Auth response: status={}, location={}, setCookieNames={}",
+        log.debug("Auth response: status={}, location={}, setCookieNames={}",
                 response.getStatusCode(), location, cookieNames);
         return response;
     }
