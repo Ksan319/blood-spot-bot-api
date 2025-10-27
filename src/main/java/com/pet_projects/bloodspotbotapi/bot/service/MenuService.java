@@ -27,7 +27,11 @@ public class MenuService {
                 } catch (Exception ignored) {
                     // если форматирование не требуется или формат некорректен — оставляем как есть
                 }
-                customKeyBoardBuilder.button(button.getLabel(), callback);
+                if (callback.equals("ROW")){
+                    customKeyBoardBuilder.row();
+                }  else {
+                    customKeyBoardBuilder.button(button.getLabel(), callback);
+                }
             }
         }
         return customKeyBoardBuilder.build();
