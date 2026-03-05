@@ -4,11 +4,10 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
 import java.lang.reflect.Field;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 
 public class FormUtils {
 
+    @SuppressWarnings("null")
     public static MultiValueMap<String, String> toFormData(Object object) {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         for (Field field : object.getClass().getDeclaredFields()) {

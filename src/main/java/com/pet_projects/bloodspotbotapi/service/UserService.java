@@ -33,7 +33,8 @@ public class UserService {
     }
 
     public void changeSubscription(Long chatId) {
-        User user = userRepository.findById(chatId).get();
+        User user = userRepository.findById(chatId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + chatId));
         user.setSubscribed(!user.isSubscribed());
         userRepository.save(user);
     }
@@ -56,6 +57,7 @@ public class UserService {
                 .orElse(false);
     }
 
+    @SuppressWarnings("null")
     public void deleteUser(Long chatId) {
         userRepository.findById(chatId).ifPresent(user -> {
             try {

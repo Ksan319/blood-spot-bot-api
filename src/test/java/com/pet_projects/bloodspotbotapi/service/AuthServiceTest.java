@@ -32,8 +32,8 @@ public class AuthServiceTest {
     @EnumSource(UserSite.class)
     public void testAuthValidCredentials(UserSite site) {
         User user = new User();
-        user.setEmail("alexldomra@gmail.com");
-        user.setPassword("BCeTZx!cso.Ko-ux-EzmMyyydo7WaX@XxBa9VvheBTAAHRLCB");
+        user.setEmail("test@example.com");
+        user.setPassword("test");
         user.setSite(site);
 
         String cookies = authService.getCookieHeader(user);

@@ -7,6 +7,7 @@ import com.pet_projects.bloodspotbotapi.service.dto.SpotDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.lang.NonNull;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -21,10 +22,11 @@ public class SpotService {
         return spotRepository.findAllByIsSendFalseAndUser(user).orElse(List.of());
     }
 
-    public void markSpotIsSent(List<Spot> spots) {
+    public void markSpotIsSent(@NonNull List<Spot> spots) {
         spotRepository.saveAll(spots);
     }
 
+    @SuppressWarnings("null")
     public void saveNewSpots(List<SpotDTO> spots, User user) {
         // Получаем все текущие споты пользователя
         List<Spot> existingSpots = spotRepository.findAllByUser(user);
@@ -48,18 +50,19 @@ public class SpotService {
         }
 
         // Создаём новые споты для появившихся дат
-        List<LocalDate> toAddDates = spots.stream()
-                .map(SpotDTO::getSpotDate)
-                .filter(dtoDate -> !existingDates.contains(dtoDate))
+        List<Spot> toAddDates = spots.stream()
+                .filter(dto -> !existingDates.contains(dto.getSpotDate()))
+                .map(dto -> {
+                    Spot newSpot = new Spot();
+                    newSpot.setSpotDate(dto.getSpotDate());
+                    newSpot.setUser(user);
+                    return newSpot;
+                })
                 .toList();
-        for (LocalDate date : toAddDates) {
-            Spot newSpot = new Spot();
-            newSpot.setSpotDate(date);
-            newSpot.setUser(user);
-            spotRepository.save(newSpot);
-        }
+        spotRepository.saveAll(toAddDates);
 
         log.info("Spot sync for user {} (id={}): existing={}, parsed={}, added={}, removed={}",
-                user.getEmail(), user.getId(), existingSpots.size(), foundDates.size(), toAddDates.size(), toDelete.size());
+                user.getEmail(), user.getId(), existingSpots.size(), foundDates.size(), toAddDates.size(),
+                toDelete.size());
     }
 }
