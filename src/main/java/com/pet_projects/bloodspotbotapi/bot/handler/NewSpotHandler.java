@@ -1,6 +1,5 @@
 package com.pet_projects.bloodspotbotapi.bot.handler;
 
-import com.pet_projects.bloodspotbotapi.client.TelegramClientWrapper;
 import com.pet_projects.bloodspotbotapi.model.Spot;
 import com.pet_projects.bloodspotbotapi.model.User;
 import com.pet_projects.bloodspotbotapi.service.SpotService;
@@ -17,7 +16,6 @@ import java.util.List;
 @Slf4j
 public class NewSpotHandler {
     private final SpotService spotService;
-    private final TelegramClientWrapper telegramClientWrapper;
     private final MenuDispatcher menuDispatcher;
 
     @SneakyThrows
@@ -34,7 +32,8 @@ public class NewSpotHandler {
             }
 
             log.info("spot text {}", spotText.toString());
-            String siteUrl = (user.getSite() != null ? user.getSite().getValidLocation() : "https://donor-mos.online/account/");
+            String siteUrl = (user.getSite() != null ? user.getSite().getValidLocation()
+                    : "https://donor-mos.online/account/");
             menuDispatcher.sendMenu("newSpotsFound", user.getId(), new Update(), spotText.toString(), siteUrl);
             spotService.markSpotIsSent(actualSpots);
             log.info("Notification sent for {} dates to user {}", actualSpots.size(), user.getEmail());

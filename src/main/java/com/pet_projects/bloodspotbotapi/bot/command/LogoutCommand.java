@@ -1,6 +1,5 @@
 package com.pet_projects.bloodspotbotapi.bot.command;
 
-import com.pet_projects.bloodspotbotapi.bot.handler.MenuDispatcher;
 import com.pet_projects.bloodspotbotapi.service.UserService;
 import com.pet_projects.bloodspotbotapi.service.session.UserStateStorage;
 import lombok.RequiredArgsConstructor;
@@ -36,4 +35,3 @@ public class LogoutCommand implements BotCommand {
         startCommand.process(chatId, update);
     }
 }
-
