@@ -6,6 +6,7 @@ import com.pet_projects.bloodspotbotapi.model.User;
 import com.pet_projects.bloodspotbotapi.model.UserSite;
 import com.pet_projects.bloodspotbotapi.repository.UserRepository;
 import com.pet_projects.bloodspotbotapi.service.exception.AuthFailedException;
+import com.pet_projects.bloodspotbotapi.utils.HtmlUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,8 +18,6 @@ import java.net.HttpCookie;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -98,8 +97,8 @@ public class AuthService {
 
                 // Parse JS cookie / redirect from body
                 String body = first.getBody() != null ? first.getBody() : "";
-                String jsCookie = extractJsCookieFromHtml(body);
-                String jsRedirect = extractJsRedirectFromHtml(body);
+                String jsCookie = HtmlUtils.extractJsCookieFromHtml(body);
+                String jsRedirect = HtmlUtils.extractJsRedirectFromHtml(body);
 
                 if (jsCookie != null) {
                         putKeyValue(jar, jsCookie);
@@ -135,7 +134,7 @@ public class AuthService {
                 String body = response.getBody();
                 if (body == null)
                         return;
-                String kv = extractJsCookieFromHtml(body);
+                String kv = HtmlUtils.extractJsCookieFromHtml(body);
                 if (kv != null) {
                         putKeyValue(jar, kv);
                 }
@@ -156,22 +155,4 @@ public class AuthService {
                                 .collect(Collectors.joining("; "));
         }
 
-        // --- HTML parsing ---
-
-        private static String extractJsCookieFromHtml(String html) {
-                Pattern p = Pattern.compile("document\\.cookie\\s*=\\s*\"([^\"]+)\"");
-                Matcher m = p.matcher(html);
-                if (m.find()) {
-                        String full = m.group(1);
-                        int idx = full.indexOf(';');
-                        return idx > 0 ? full.substring(0, idx) : full;
-                }
-                return null;
-        }
-
-        private static String extractJsRedirectFromHtml(String html) {
-                Pattern p = Pattern.compile("document\\.location\\.href\\s*=\\s*\"([^\"]+)\"");
-                Matcher m = p.matcher(html);
-                return m.find() ? m.group(1) : null;
-        }
 }
