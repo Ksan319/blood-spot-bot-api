@@ -3,15 +3,13 @@ package com.pet_projects.bloodspotbotapi.service.jobs;
 import com.pet_projects.bloodspotbotapi.bot.handler.AuthUpdateHandler;
 import com.pet_projects.bloodspotbotapi.bot.handler.NewSpotHandler;
 import com.pet_projects.bloodspotbotapi.client.donormos.DonorMosOnlineClient;
-import com.pet_projects.bloodspotbotapi.model.Spot;
 import com.pet_projects.bloodspotbotapi.model.User;
-import com.pet_projects.bloodspotbotapi.repository.SpotRepository;
 import com.pet_projects.bloodspotbotapi.repository.UserRepository;
 import com.pet_projects.bloodspotbotapi.service.SpotService;
 import com.pet_projects.bloodspotbotapi.service.UserService;
 import com.pet_projects.bloodspotbotapi.service.exception.AuthFailedException;
 import com.pet_projects.bloodspotbotapi.service.dto.SpotDTO;
-import com.pet_projects.bloodspotbotapi.service.session.CookieSessionManager;
+import com.pet_projects.bloodspotbotapi.service.AuthService;
 import com.pet_projects.bloodspotbotapi.utils.SpotUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -28,20 +26,21 @@ import java.util.List;
 public class SpotDonationJob {
 
     private final DonorMosOnlineClient donorMosClient;
-    private final CookieSessionManager sessionManager;
+    private final AuthService authService;
     private final UserRepository userRepository;
     private final SpotService spotService;
     private final NewSpotHandler newSpotHandler;
     private final UserService userService;
     private final AuthUpdateHandler authUpdateHandler;
+
     /**
      * Для каждого юзера делает auth + getSpots
      */
     public String fetchSpotsFor(User user) {
-        String cookieHeader = sessionManager.getCookieHeader(user);
+        String cookieHeader = authService.getCookieHeader(user);
         String baseUrl = user.getSite() != null ? user.getSite().getBaseUrl() : "https://donor-mos.online";
         log.info("Fetching spots: user={}, id={}, baseUrl={}", user.getEmail(), user.getId(), baseUrl);
-        ResponseEntity<String> resp = donorMosClient.getSpotsWithCookie(cookieHeader, baseUrl);
+        ResponseEntity<String> resp = donorMosClient.getAccountPage(baseUrl, cookieHeader);
         if (resp.getStatusCode().is2xxSuccessful()) {
             String body = resp.getBody();
             int len = body != null ? body.length() : 0;
@@ -51,7 +50,6 @@ public class SpotDonationJob {
         log.warn("Failed to fetch spots: user={}, status={}", user.getEmail(), resp.getStatusCode());
         throw new RuntimeException("Failed to fetch spots, status=" + resp.getStatusCode());
     }
-
 
     /**
      * Джоба, запускается каждый час для всех юзеров
@@ -68,12 +66,14 @@ public class SpotDonationJob {
                 String html = fetchSpotsFor(u);
                 var elements = Jsoup.parse(html).getElementsByClass("dates-table__item table-item");
                 List<SpotDTO> findSpots = SpotUtils.getSpots(elements);
-                log.info("Parsed page: user={}, nodesFound={}, spotDatesExtracted={}", u.getEmail(), elements.size(), findSpots.size());
+                log.info("Parsed page: user={}, nodesFound={}, spotDatesExtracted={}", u.getEmail(), elements.size(),
+                        findSpots.size());
                 spotService.saveNewSpots(findSpots, u);
                 newSpotHandler.sendNewSpots(u);
                 log.info("Polling user done: {} (id={})", u.getEmail(), u.getId());
             } catch (AuthFailedException e) {
-                log.warn("Auth failed for user {} (id={}), notifying and logging out: {}", u.getEmail(), u.getId(), e.getMessage());
+                log.warn("Auth failed for user {} (id={}), notifying and logging out: {}", u.getEmail(), u.getId(),
+                        e.getMessage());
                 authUpdateHandler.notifyAuthError(u.getId());
                 userService.deleteUser(u.getId());
             } catch (Exception e) {

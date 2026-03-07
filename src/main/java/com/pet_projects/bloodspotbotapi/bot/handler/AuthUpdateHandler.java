@@ -1,8 +1,8 @@
 package com.pet_projects.bloodspotbotapi.bot.handler;
 
+import com.pet_projects.bloodspotbotapi.bot.client.TelegramClientWrapper;
 import com.pet_projects.bloodspotbotapi.bot.command.MainCommand;
 import com.pet_projects.bloodspotbotapi.bot.utils.TelegramUpdateUtils;
-import com.pet_projects.bloodspotbotapi.client.TelegramClientWrapper;
 import com.pet_projects.bloodspotbotapi.service.AuthService;
 import com.pet_projects.bloodspotbotapi.service.UserService;
 import com.pet_projects.bloodspotbotapi.service.session.UserState;
@@ -37,7 +37,6 @@ public class AuthUpdateHandler implements UpdateHandler {
         if (message == null || message.isEmpty()) {
             menuDispatcher.sendMenu("authError", chatId, update);
         }
-
 
         String[] parts = message.trim().split("\\s+", 2);
         if (parts.length != 2) {
@@ -79,7 +78,6 @@ public class AuthUpdateHandler implements UpdateHandler {
         }
         return stateStorage.getState(chatId) == UserState.AWAITING_AUTH_CREDENTIALS;
     }
-
 
     private void sendText(Long chatId, String text, InlineKeyboardMarkup keyboard) throws TelegramApiException {
         SendMessage msg = SendMessage.builder()

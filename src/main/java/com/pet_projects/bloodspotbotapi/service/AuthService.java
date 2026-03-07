@@ -5,199 +5,154 @@ import com.pet_projects.bloodspotbotapi.client.donormos.dto.AuthBody;
 import com.pet_projects.bloodspotbotapi.model.User;
 import com.pet_projects.bloodspotbotapi.model.UserSite;
 import com.pet_projects.bloodspotbotapi.repository.UserRepository;
-import lombok.Data;
+import com.pet_projects.bloodspotbotapi.service.exception.AuthFailedException;
+import com.pet_projects.bloodspotbotapi.utils.HtmlUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.net.HttpCookie;
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
-import com.pet_projects.bloodspotbotapi.service.exception.AuthFailedException;
 
 @Service
 @RequiredArgsConstructor
-@Data
 @Slf4j
 public class AuthService {
 
-    private final DonorMosOnlineClient donorMosOnlineClient;
-    private final UserRepository userRepository;
+        private final DonorMosOnlineClient client;
+        private final UserRepository userRepository;
 
-    @Value("${donor-source.valid-location}")
-    private String validLocation; // fallback for legacy/default
+        @Value("${donor-source.valid-location}")
+        private String validLocation;
 
-    public boolean isCredentialValid(Long chatId, String username, String password) {
-        UserSite site = userRepository.findById(chatId)
-                .map(User::getSite)
-                .orElse(UserSite.DONOR_MOS);
-
-        String baseUrl = site != null ? site.getBaseUrl() : "https://donor-mos.online";
-        String redirectTo = site != null ? site.getValidLocation() : validLocation;
-
-        log.debug("Auth attempt: site={}, baseUrl={}, redirectTo={} (user={})",
-                site, baseUrl, redirectTo, username);
-
-        String cookies = donorMosOnlineClient.preflightAcquireCookies(baseUrl);
-
-        ResponseEntity<String> response = donorMosOnlineClient.authWithCookies(
-                AuthBody.builder()
-                        .log(username)
-                        .pwd(password)
-                        .redirect_to(redirectTo)
-                        .build(),
-                baseUrl,
-                cookies
-        );
-
-        cookies = mergeCookieHeader(cookies, response);
-
-        String location = response.getHeaders().getLocation() != null
-                ? response.getHeaders().getLocation().toString()
-                : null;
-        log.debug("Auth response: status={}, location={}, setCookieNames={}",
-                response.getStatusCode(), location,
-                response.getHeaders().getOrEmpty(org.springframework.http.HttpHeaders.SET_COOKIE).stream()
-                        .map(h -> h.split(";", 2)[0])
-                        .map(kv -> kv.split("=", 2)[0])
-                        .collect(java.util.stream.Collectors.toList()));
-
-        String expectedLocation = redirectTo;
-        String actualLocation = response.getHeaders().getLocation() != null
-                ? response.getHeaders().getLocation().toString()
-                : null;
-
-        // Success: explicit match to expected redirect
-        if (response.getStatusCode() == HttpStatus.FOUND
-                && actualLocation != null
-                && actualLocation.equals(expectedLocation)) {
-            return true;
+        public boolean isCredentialValid(Long chatId, String username, String password) {
+                try {
+                        UserSite site = userRepository.findById(chatId)
+                                        .map(User::getSite)
+                                        .orElse(UserSite.DONOR_MOS);
+                        getCookieHeader(username, password, site);
+                        return true;
+                } catch (Exception e) {
+                        log.warn("Auth failed for {}: {}", username, e.getMessage());
+                        return false;
+                }
         }
 
-        // Explicit unsuccessful auth: redirected within our site but not to expected location
-        if (response.getStatusCode() == HttpStatus.FOUND
-                && actualLocation != null
-                && actualLocation.startsWith(baseUrl)
-                && !actualLocation.equals(expectedLocation)) {
-            log.warn("Unsuccessful auth redirect: expected={}, actual={}", expectedLocation, actualLocation);
-            return false;
+        public String getCookieHeader(User user) {
+                UserSite site = user.getSite() != null ? user.getSite() : UserSite.DONOR_MOS;
+                return getCookieHeader(user.getEmail(), user.getPassword(), site);
         }
 
-        // Fallback: check account page with cookies
-        ResponseEntity<String> accountResp = donorMosOnlineClient.getSpotsWithCookie(cookies, baseUrl);
-        // Conservative: don't treat as success unless explicit redirect matched
-        return false;
-    }
+        private String getCookieHeader(String email, String password, UserSite site) {
+                String baseUrl = site != null ? site.getBaseUrl() : "https://donor-mos.online";
+                String redirectTo = site != null ? site.getValidLocation() : validLocation;
 
-    public ResponseEntity<String> processAuth(String username, String password, UserSite site) {
-        String redirectTo = site != null ? site.getValidLocation() : validLocation;
-        String baseUrl = site != null ? site.getBaseUrl() : "https://donor-mos.online";
+                // 1. Preflight: collect cookies required by the site before auth
+                Map<String, String> cookieJar = preflightCollectCookies(baseUrl);
 
-        log.debug("Auth attempt: site={}, baseUrl={}, redirectTo={} (user={})",
-                site, baseUrl, redirectTo, username);
+                // 2. POST auth with preflight cookies
+                ResponseEntity<String> authResp = client.auth(
+                                AuthBody.builder()
+                                                .log(email)
+                                                .pwd(password)
+                                                .redirect_to(redirectTo)
+                                                .build(),
+                                baseUrl,
+                                buildCookieHeader(cookieJar));
 
-        String cookies = donorMosOnlineClient.preflightAcquireCookies(baseUrl);
+                // 3. Merge auth response cookies
+                collectSetCookies(cookieJar, authResp);
+                extractBodyCookies(cookieJar, authResp);
 
-        ResponseEntity<String> response = donorMosOnlineClient.authWithCookies(
-                AuthBody.builder()
-                        .log(username)
-                        .pwd(password)
-                        .redirect_to(redirectTo)
-                        .build(),
-                baseUrl,
-                cookies
-        );
+                String cookies = buildCookieHeader(cookieJar);
+                if (cookies.isEmpty()) {
+                        throw new AuthFailedException("Failed to extract cookies for user " + email);
+                }
 
-        String location = response.getHeaders().getLocation() != null
-                ? response.getHeaders().getLocation().toString()
-                : null;
-        List<String> cookieNames = response.getHeaders().getOrEmpty(HttpHeaders.SET_COOKIE).stream()
-                .map(h -> h.split(";", 2)[0])
-                .map(kv -> kv.split("=", 2)[0])
-                .collect(Collectors.toList());
+                // 4. Verify: GET /account/ and check for expected element
+                ResponseEntity<String> accountResp = client.getAccountPage(baseUrl, cookies);
+                String body = accountResp.getBody();
+                if (body != null && body.contains("table-item__date")) {
+                        return cookies;
+                }
 
-        log.debug("Auth response: status={}, location={}, setCookieNames={}",
-                response.getStatusCode(), location, cookieNames);
-        return response;
-    }
-
-    public String getCookieHeader(User user) {
-        UserSite site = user.getSite() != null ? user.getSite() : UserSite.DONOR_MOS;
-        String baseUrl = site.getBaseUrl();
-        String expectedLocation = site.getValidLocation();
-
-        String cookies = donorMosOnlineClient.preflightAcquireCookies(baseUrl);
-
-        ResponseEntity<String> authResp = donorMosOnlineClient.authWithCookies(
-                AuthBody.builder()
-                        .log(user.getEmail())
-                        .pwd(user.getPassword())
-                        .redirect_to(expectedLocation)
-                        .build(),
-                baseUrl,
-                cookies
-        );
-
-        cookies = mergeCookieHeader(cookies, authResp);
-
-        String actual = authResp.getHeaders().getLocation() != null
-                ? authResp.getHeaders().getLocation().toString()
-                : null;
-
-        // Success only if exact expected redirect
-        if (authResp.getStatusCode() == HttpStatus.FOUND
-                && actual != null
-                && expectedLocation.equals(actual)) {
-            return cookies;
+                throw new AuthFailedException(
+                                "Auth failed for user " + email + ", account page does not contain expected elements.");
         }
 
-        // Explicit unsuccessful auth when redirected within our site but not to expected
-        if (authResp.getStatusCode() == HttpStatus.FOUND
-                && actual != null
-                && actual.startsWith(baseUrl)
-                && !expectedLocation.equals(actual)) {
-            throw new AuthFailedException(
-                    "Auth unsuccessful: redirected to unexpected page within site. expectedLocation="
-                            + expectedLocation + ", actualLocation=" + actual);
+        // --- Preflight ---
+
+        private Map<String, String> preflightCollectCookies(String baseUrl) {
+                Map<String, String> jar = new LinkedHashMap<>();
+
+                // First GET /auth.php
+                ResponseEntity<String> first = client.getLoginPage(baseUrl, null);
+                collectSetCookies(jar, first);
+
+                // Parse JS cookie / redirect from body
+                String body = first.getBody() != null ? first.getBody() : "";
+                String jsCookie = HtmlUtils.extractJsCookieFromHtml(body);
+                String jsRedirect = HtmlUtils.extractJsRedirectFromHtml(body);
+
+                if (jsCookie != null) {
+                        putKeyValue(jar, jsCookie);
+                }
+                if (jsRedirect != null) {
+                        ResponseEntity<String> redirectResp = client.getAbsoluteUrl(jsRedirect, buildCookieHeader(jar));
+                        collectSetCookies(jar, redirectResp);
+                }
+
+                // Second GET /auth.php with collected cookies (gets wordpress_test_cookie etc.)
+                ResponseEntity<String> second = client.getLoginPage(baseUrl, buildCookieHeader(jar));
+                collectSetCookies(jar, second);
+
+                log.debug("Preflight cookies for {}: {}", baseUrl, jar.keySet());
+                return jar;
         }
 
-        throw new IllegalStateException(
-                "Auth failed for user " + user.getEmail() +
-                        ", status=" + authResp.getStatusCode() +
-                        ", expectedLocation=" + expectedLocation +
-                        ", actualLocation=" + actual
-        );
-    }
+        // --- Cookie utils ---
 
-    private static String mergeCookieHeader(String existingCookieHeader, ResponseEntity<?> response) {
-        Map<String, String> jar = new LinkedHashMap<>();
-        if (existingCookieHeader != null && !existingCookieHeader.isBlank()) {
-            for (String part : existingCookieHeader.split("; ")) {
-                String[] kv = part.split("=", 2);
-                if (kv.length == 2) jar.put(kv[0], kv[1]);
-            }
+        private static void collectSetCookies(Map<String, String> jar, ResponseEntity<?> response) {
+                List<String> setCookie = response.getHeaders().get(HttpHeaders.SET_COOKIE);
+                if (setCookie == null || setCookie.isEmpty())
+                        return;
+                setCookie.stream()
+                                .map(HttpCookie::parse)
+                                .flatMap(List::stream)
+                                .forEach(c -> jar.put(c.getName(), c.getValue()));
         }
-        List<String> setCookie = response.getHeaders().get(HttpHeaders.SET_COOKIE);
-        if (setCookie != null && !setCookie.isEmpty()) {
-            setCookie.stream()
-                    .map(HttpCookie::parse)
-                    .flatMap(List::stream)
-                    .forEach(c -> jar.put(c.getName(), c.getValue()));
-        }
-        if (jar.isEmpty()) {
-            return existingCookieHeader != null ? existingCookieHeader : "";
-        }
-        return jar.entrySet().stream()
-                .map(e -> e.getKey() + "=" + e.getValue())
-                .collect(Collectors.joining("; "));
-    }
 
-    public ResponseEntity<String> processAuth(User user) {
-        UserSite site = user.getSite() != null ? user.getSite() : UserSite.DONOR_MOS;
-        return processAuth(user.getEmail(), user.getPassword(), site);
-    }
+        private static void extractBodyCookies(Map<String, String> jar, ResponseEntity<String> response) {
+                if (!response.getStatusCode().is2xxSuccessful())
+                        return;
+                String body = response.getBody();
+                if (body == null)
+                        return;
+                String kv = HtmlUtils.extractJsCookieFromHtml(body);
+                if (kv != null) {
+                        putKeyValue(jar, kv);
+                }
+        }
+
+        private static void putKeyValue(Map<String, String> jar, String kv) {
+                String[] parts = kv.split("=", 2);
+                if (parts.length == 2 && !parts[0].isBlank()) {
+                        jar.put(parts[0], parts[1]);
+                }
+        }
+
+        private static String buildCookieHeader(Map<String, String> jar) {
+                if (jar.isEmpty())
+                        return "";
+                return jar.entrySet().stream()
+                                .map(e -> e.getKey() + "=" + e.getValue())
+                                .collect(Collectors.joining("; "));
+        }
+
 }

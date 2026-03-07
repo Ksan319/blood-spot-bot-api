@@ -11,7 +11,7 @@ RUN gradle bootJar -x test
 
 # ========================================
 # Финальный образ
-FROM openjdk:21-jdk-slim
+FROM bellsoft/liberica-openjdk-alpine:21
 
 WORKDIR /app
 

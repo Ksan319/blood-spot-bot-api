@@ -1,4 +1,4 @@
-package com.pet_projects.bloodspotbotapi.client;
+package com.pet_projects.bloodspotbotapi.bot.client;
 
 import com.pet_projects.bloodspotbotapi.service.UserService;
 import jakarta.annotation.PostConstruct;

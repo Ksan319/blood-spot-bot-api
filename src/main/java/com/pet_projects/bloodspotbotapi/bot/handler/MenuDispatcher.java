@@ -1,7 +1,8 @@
 package com.pet_projects.bloodspotbotapi.bot.handler;
 
+import com.pet_projects.bloodspotbotapi.bot.client.TelegramClientWrapper;
 import com.pet_projects.bloodspotbotapi.bot.service.MenuService;
-import com.pet_projects.bloodspotbotapi.client.TelegramClientWrapper;
+
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import org.springframework.stereotype.Component;
@@ -49,4 +50,3 @@ public class MenuDispatcher {
         }
     }
 }
-
