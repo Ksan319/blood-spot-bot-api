@@ -1,6 +1,5 @@
 name: Docker Image CI
-env:
-  - CI/CD
+env: CI/CD
 
 on:
   push:
