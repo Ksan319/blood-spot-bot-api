@@ -20,8 +20,8 @@ jobs:
       - name: Set image tag
         id: meta
         run: |
-          echo "tag=ksan319-pet/blood_spot:${{ github.sha }}" >> $GITHUB_OUTPUT
-          echo "latest=ksan319-pet/blood_spot:latest" >> $GITHUB_OUTPUT
+          echo "tag=ksan319/blood_spot:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "latest=ksan319/blood_spot:latest" >> $GITHUB_OUTPUT
 
       - name: Build the Docker image
         run: docker build . --file Dockerfile --tag ${{ steps.meta.outputs.tag }} --tag ${{ steps.meta.outputs.latest }}
