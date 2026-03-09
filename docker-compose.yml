@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   app:
-    image: ksan319-pet/blood_spot:latest
+    image: ksan319/blood_spot:latest
     container_name: "blood_spot_api"
     env_file:
       - .env
