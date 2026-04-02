@@ -2,10 +2,12 @@ package com.pet_projects.bloodspotbotapi.service;
 
 import com.pet_projects.bloodspotbotapi.client.donormos.DonorMosOnlineClient;
 import com.pet_projects.bloodspotbotapi.client.donormos.dto.AuthBody;
+import com.pet_projects.bloodspotbotapi.config.EncryptionProperties;
 import com.pet_projects.bloodspotbotapi.model.User;
 import com.pet_projects.bloodspotbotapi.model.UserSite;
 import com.pet_projects.bloodspotbotapi.repository.UserRepository;
 import com.pet_projects.bloodspotbotapi.service.exception.AuthFailedException;
+import com.pet_projects.bloodspotbotapi.utils.EncryptionUtils;
 import com.pet_projects.bloodspotbotapi.utils.HtmlUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +29,7 @@ public class AuthService {
 
         private final DonorMosOnlineClient client;
         private final UserRepository userRepository;
+        private final EncryptionProperties encryptionProperties;
 
         @Value("${donor-source.valid-location}")
         private String validLocation;
@@ -46,7 +49,14 @@ public class AuthService {
 
         public String getCookieHeader(User user) {
                 UserSite site = user.getSite() != null ? user.getSite() : UserSite.DONOR_MOS;
-                return getCookieHeader(user.getEmail(), user.getPassword(), site);
+                String decryptedPassword;
+                try {
+                        decryptedPassword = EncryptionUtils.decrypt(user.getPassword(), encryptionProperties.getSecretKey());
+                } catch (EncryptionUtils.EncryptionException e) {
+                        log.error("Failed to decrypt password for user {}: {}", user.getId(), e.getMessage());
+                        throw new AuthFailedException("Failed to decrypt user credentials", e);
+                }
+                return getCookieHeader(user.getEmail(), decryptedPassword, site);
         }
 
         private String getCookieHeader(String email, String password, UserSite site) {

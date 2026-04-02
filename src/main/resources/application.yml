@@ -26,6 +26,9 @@ donor-source:
   base-url: ${BASE_URL}
   valid-location: ${VALID_URL}
 
+encryption:
+  secret-key: ${ENCRYPTION_SECRET_KEY}
+
 commands:
   menus:
     start:
