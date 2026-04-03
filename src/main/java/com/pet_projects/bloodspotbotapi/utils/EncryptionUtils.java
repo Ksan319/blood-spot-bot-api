@@ -14,6 +14,7 @@ public final class EncryptionUtils {
     private static final int TAG_LENGTH_BIT = 128;
     private static final int IV_LENGTH_BYTE = 12;
     private static final int AES_KEY_BIT = 256;
+    private static final String ENCRYPTION_PREFIX = "ENC:";
 
     private EncryptionUtils() {
     }
@@ -31,7 +32,7 @@ public final class EncryptionUtils {
             byte[] combined = new byte[iv.length + encrypted.length];
             System.arraycopy(iv, 0, combined, 0, iv.length);
             System.arraycopy(encrypted, 0, combined, iv.length, encrypted.length);
-            return Base64.getEncoder().encodeToString(combined);
+            return ENCRYPTION_PREFIX + Base64.getEncoder().encodeToString(combined);
         } catch (Exception e) {
             throw new EncryptionException("Failed to encrypt data", e);
         }
@@ -43,7 +44,10 @@ public final class EncryptionUtils {
         }
         try {
             SecretKey key = getAESKey(secret);
-            byte[] combined = Base64.getDecoder().decode(ciphertext);
+            String base64Data = ciphertext.startsWith(ENCRYPTION_PREFIX)
+                    ? ciphertext.substring(ENCRYPTION_PREFIX.length())
+                    : ciphertext;
+            byte[] combined = Base64.getDecoder().decode(base64Data);
             byte[] iv = new byte[IV_LENGTH_BYTE];
             byte[] encrypted = new byte[combined.length - IV_LENGTH_BYTE];
             System.arraycopy(combined, 0, iv, 0, IV_LENGTH_BYTE);
