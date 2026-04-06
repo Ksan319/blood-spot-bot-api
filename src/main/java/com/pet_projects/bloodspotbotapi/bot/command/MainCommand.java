@@ -3,7 +3,7 @@ package com.pet_projects.bloodspotbotapi.bot.command;
 import com.pet_projects.bloodspotbotapi.bot.handler.MenuDispatcher;
 import com.pet_projects.bloodspotbotapi.model.User;
 import com.pet_projects.bloodspotbotapi.repository.UserRepository;
-import com.pet_projects.bloodspotbotapi.service.AuthService;
+import com.pet_projects.bloodspotbotapi.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -15,7 +15,7 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 public class MainCommand implements BotCommand {
     private final UserRepository userRepository;
     private final MenuDispatcher menuDispatcher;
-    private final AuthService authService;
+    private final UserService userService;
 
     @Override
     public String command() {
@@ -29,9 +29,11 @@ public class MainCommand implements BotCommand {
 
     @Override
     public void process(Long chatId, Update update) {
-        User user = userRepository.findById(chatId).get();
-        if (!authService.isCredentialValid(user.getId(), user.getEmail(), user.getPassword())) {
-            menuDispatcher.sendMenu("authError", user.getId(), new Update());
+        User user = userRepository.findById(chatId).orElse(null);
+        // TODO: Добавить проверку валидности credentials через AuthService.getCookieHeader(user)
+        //       с обработкой AuthFailedException. Сейчас проверяется только наличие email/password.
+        if (user == null || !userService.hasCredentials(chatId)) {
+            menuDispatcher.sendMenu("authError", chatId, new Update());
             return;
         }
         String subscribeState = user.isSubscribed() ? "✅ Подписка активна" : "❌ Подписка не активна";
