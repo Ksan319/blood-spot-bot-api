@@ -1,9 +1,11 @@
 package com.pet_projects.bloodspotbotapi.service;
 
+import com.pet_projects.bloodspotbotapi.config.EncryptionProperties;
 import com.pet_projects.bloodspotbotapi.model.User;
 import com.pet_projects.bloodspotbotapi.model.UserSite;
 import com.pet_projects.bloodspotbotapi.repository.SpotRepository;
 import com.pet_projects.bloodspotbotapi.repository.UserRepository;
+import com.pet_projects.bloodspotbotapi.utils.EncryptionUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,6 +24,8 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 public class UserServiceTest {
 
+    private static final String TEST_SECRET_KEY = "test-secret-key-32-characters!!!";
+
     private UserService userService;
 
     @Mock
@@ -32,7 +36,9 @@ public class UserServiceTest {
 
     @BeforeEach
     public void setUp() {
-        userService = new UserService(userRepository, spotRepository);
+        EncryptionProperties encryptionProperties = new EncryptionProperties();
+        encryptionProperties.setSecretKey(TEST_SECRET_KEY);
+        userService = new UserService(userRepository, spotRepository, encryptionProperties);
     }
 
     @Test
@@ -51,7 +57,8 @@ public class UserServiceTest {
         User savedUser = userCaptor.getValue();
         assertEquals(chatId, savedUser.getId());
         assertEquals(email, savedUser.getEmail());
-        assertEquals(password, savedUser.getPassword());
+        assertNotEquals(password, savedUser.getPassword());
+        assertEquals(password, EncryptionUtils.decrypt(savedUser.getPassword(), TEST_SECRET_KEY));
         assertTrue(savedUser.isActive());
         assertEquals(UserSite.DONOR_MOS, savedUser.getSite());
     }
@@ -69,7 +76,8 @@ public class UserServiceTest {
 
         verify(userRepository).save(existingUser);
         assertEquals(email, existingUser.getEmail());
-        assertEquals(password, existingUser.getPassword());
+        assertNotEquals(password, existingUser.getPassword());
+        assertEquals(password, EncryptionUtils.decrypt(existingUser.getPassword(), TEST_SECRET_KEY));
         assertTrue(existingUser.isActive());
         assertEquals(UserSite.DONOR_MOS_SAB, existingUser.getSite());
     }

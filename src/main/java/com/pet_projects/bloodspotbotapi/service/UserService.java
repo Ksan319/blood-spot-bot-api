@@ -1,19 +1,22 @@
 package com.pet_projects.bloodspotbotapi.service;
 
+import com.pet_projects.bloodspotbotapi.config.EncryptionProperties;
 import com.pet_projects.bloodspotbotapi.model.User;
 import com.pet_projects.bloodspotbotapi.model.UserSite;
 import com.pet_projects.bloodspotbotapi.repository.UserRepository;
 import com.pet_projects.bloodspotbotapi.repository.SpotRepository;
+import com.pet_projects.bloodspotbotapi.utils.EncryptionUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
+@RequiredArgsConstructor
 public class UserService {
     private final UserRepository userRepository;
     private final SpotRepository spotRepository;
+    private final EncryptionProperties encryptionProperties;
 
     public void saveOrUpdate(Long chatId, String login, String password) {
         User user = userRepository.findById(chatId)
@@ -24,7 +27,12 @@ public class UserService {
                 });
 
         user.setEmail(login);
-        user.setPassword(password);
+        try {
+            user.setPassword(EncryptionUtils.encrypt(password, encryptionProperties.getSecretKey()));
+        } catch (EncryptionUtils.EncryptionException e) {
+            log.error("Failed to encrypt password for user {}: {}", chatId, e.getMessage());
+            throw new RuntimeException("Failed to save user credentials", e);
+        }
         user.setActive(true);
         if (user.getSite() == null) {
             user.setSite(UserSite.DONOR_MOS);
