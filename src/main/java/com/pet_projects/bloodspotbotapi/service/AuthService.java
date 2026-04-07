@@ -11,7 +11,6 @@ import com.pet_projects.bloodspotbotapi.utils.EncryptionUtils;
 import com.pet_projects.bloodspotbotapi.utils.HtmlUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -31,9 +30,6 @@ public class AuthService {
         private final UserRepository userRepository;
         private final EncryptionProperties encryptionProperties;
 
-        @Value("${donor-source.valid-location}")
-        private String validLocation;
-
         public boolean isCredentialValid(Long chatId, String username, String password) {
                 try {
                         UserSite site = userRepository.findById(chatId)
@@ -48,7 +44,7 @@ public class AuthService {
         }
 
         public String getCookieHeader(User user) {
-                UserSite site = user.getSite() != null ? user.getSite() : UserSite.DONOR_MOS;
+                UserSite site = user.getSite();
                 String decryptedPassword;
                 try {
                         decryptedPassword = EncryptionUtils.decrypt(user.getPassword(), encryptionProperties.getSecretKey());
@@ -60,8 +56,8 @@ public class AuthService {
         }
 
         private String getCookieHeader(String email, String password, UserSite site) {
-                String baseUrl = site != null ? site.getBaseUrl() : "https://donor-mos.online";
-                String redirectTo = site != null ? site.getValidLocation() : validLocation;
+                String baseUrl = site.getBaseUrl();
+                String redirectTo = site.getValidLocation();
 
                 // 1. Preflight: collect cookies required by the site before auth
                 Map<String, String> cookieJar = preflightCollectCookies(baseUrl);

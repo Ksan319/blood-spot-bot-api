@@ -37,12 +37,7 @@ public class MainCommand implements BotCommand {
             return;
         }
         String subscribeState = user.isSubscribed() ? "✅ Подписка активна" : "❌ Подписка не активна";
-        String siteLabel;
-        if (user.getSite() != null) {
-            siteLabel = user.getSite().getDisplayName() + " — " + user.getSite().getValidLocation();
-        } else {
-            siteLabel = "Поликарпова — https://donor-mos.online/account/";
-        }
+        String siteLabel = user.getSite().getDisplayName() + " — " + user.getSite().getValidLocation();
         menuDispatcher.sendMenu("main", chatId, update, user.getEmail(), subscribeState, siteLabel);
     }
 
