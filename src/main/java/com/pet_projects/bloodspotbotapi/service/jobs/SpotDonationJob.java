@@ -38,7 +38,7 @@ public class SpotDonationJob {
      */
     public String fetchSpotsFor(User user) {
         String cookieHeader = authService.getCookieHeader(user);
-        String baseUrl = user.getSite() != null ? user.getSite().getBaseUrl() : "https://donor-mos.online";
+        String baseUrl = user.getSite().getBaseUrl();
         log.info("Fetching spots: user={}, id={}, baseUrl={}", user.getEmail(), user.getId(), baseUrl);
         ResponseEntity<String> resp = donorMosClient.getAccountPage(baseUrl, cookieHeader);
         if (resp.getStatusCode().is2xxSuccessful()) {

@@ -32,8 +32,7 @@ public class NewSpotHandler {
             }
 
             log.info("spot text {}", spotText.toString());
-            String siteUrl = (user.getSite() != null ? user.getSite().getValidLocation()
-                    : "https://donor-mos.online/account/");
+            String siteUrl = user.getSite().getValidLocation();
             menuDispatcher.sendMenu("newSpotsFound", user.getId(), new Update(), spotText.toString(), siteUrl);
             spotService.markSpotIsSent(actualSpots);
             log.info("Notification sent for {} dates to user {}", actualSpots.size(), user.getEmail());
