@@ -29,6 +29,9 @@ donor-source:
 encryption:
   secret-key: ${ENCRYPTION_SECRET_KEY}
 
+admin:
+  password: ${ADMIN_PASSWORD}
+
 commands:
   menus:
     start:
