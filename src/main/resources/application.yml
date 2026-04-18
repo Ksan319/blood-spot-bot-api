@@ -71,6 +71,10 @@ commands:
           callback: "/site_zar"
         - label: "---"
           callback: "ROW"
+        - label: "Все медцентры 🔥"
+          callback: "/site_all"
+        - label: "---"
+          callback: "ROW"
         - label: "Написать в поддержку"
           callback: ${SUPPORT_CHAT_URL}
     newSpotsFound:

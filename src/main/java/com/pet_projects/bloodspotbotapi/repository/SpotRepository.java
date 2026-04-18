@@ -11,4 +11,6 @@ public interface SpotRepository extends JpaRepository<Spot, String> {
     Optional<List<Spot>> findAllByIsSendFalseAndUser(User user);
 
     List<Spot> findAllByUser(User user);
+
+    List<Spot> findAllBySiteNull();
 }
