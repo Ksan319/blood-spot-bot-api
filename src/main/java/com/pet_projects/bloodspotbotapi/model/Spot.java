@@ -25,4 +25,11 @@ public class Spot {
     @ManyToOne(fetch = FetchType.EAGER)
     private User user;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "site")
+    private UserSite site;
+
+    public UserSite getEffectiveSite() {
+        return site != null ? site : (user != null ? user.getSite() : null);
+    }
 }

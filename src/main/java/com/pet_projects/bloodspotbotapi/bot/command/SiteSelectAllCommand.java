@@ -1,8 +1,8 @@
 package com.pet_projects.bloodspotbotapi.bot.command;
 
 import com.pet_projects.bloodspotbotapi.bot.handler.MenuDispatcher;
-import com.pet_projects.bloodspotbotapi.model.User;
-import com.pet_projects.bloodspotbotapi.repository.UserRepository;
+import com.pet_projects.bloodspotbotapi.model.UserSite;
+import com.pet_projects.bloodspotbotapi.service.UserService;
 import com.pet_projects.bloodspotbotapi.service.session.UserState;
 import com.pet_projects.bloodspotbotapi.service.session.UserStateStorage;
 import lombok.RequiredArgsConstructor;
@@ -12,14 +12,15 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 @Component
 @RequiredArgsConstructor
-public class AuthCommand implements BotCommand {
+public class SiteSelectAllCommand implements BotCommand {
+    private final UserService userService;
     private final MenuDispatcher menuDispatcher;
+    private final MainCommand mainCommand;
     private final UserStateStorage userStateStorage;
-    private final UserRepository userRepository;
 
     @Override
     public String command() {
-        return "/auth";
+        return "/site_all";
     }
 
     @Override
@@ -29,10 +30,13 @@ public class AuthCommand implements BotCommand {
 
     @Override
     public void process(Long chatId, Update update) throws TelegramApiException {
-        User user = userRepository.findById(chatId).get();
-        String siteDisplay = user.getSite().isAll() ? "всех центров крови" : user.getSite().getBaseUrl();
-        menuDispatcher.sendMenu("auth", chatId, update, siteDisplay);
-        userStateStorage.setState(chatId, UserState.AWAITING_AUTH_CREDENTIALS);
+        userService.setUserSite(chatId, UserSite.ALL);
+        if (userService.hasCredentials(chatId)) {
+            userStateStorage.clearState(chatId);
+            mainCommand.process(chatId, update);
+        } else {
+            userStateStorage.setState(chatId, UserState.AWAITING_AUTH_CREDENTIALS);
+            menuDispatcher.sendMenu("auth", chatId, update, "всех центров крови");
+        }
     }
-
 }

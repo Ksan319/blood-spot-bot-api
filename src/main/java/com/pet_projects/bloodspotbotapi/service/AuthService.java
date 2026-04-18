@@ -35,6 +35,9 @@ public class AuthService {
                         UserSite site = userRepository.findById(chatId)
                                         .map(User::getSite)
                                         .orElse(UserSite.DONOR_MOS);
+                        if (site.isAll()) {
+                                site = UserSite.DONOR_MOS;
+                        }
                         getCookieHeader(username, password, site);
                         return true;
                 } catch (Exception e) {
@@ -44,7 +47,10 @@ public class AuthService {
         }
 
         public String getCookieHeader(User user) {
-                UserSite site = user.getSite();
+                return getCookieHeader(user, user.getSite());
+        }
+
+        public String getCookieHeader(User user, UserSite site) {
                 String decryptedPassword;
                 try {
                         decryptedPassword = EncryptionUtils.decrypt(user.getPassword(), encryptionProperties.getSecretKey());
