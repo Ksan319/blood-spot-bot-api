@@ -8,6 +8,8 @@ services:
       - .env
     ports:
       - "8080:8080"
+    volumes:
+      - ./application.yaml:/app/application.yaml
     depends_on:
       - db
     restart: "always"
