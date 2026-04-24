@@ -9,7 +9,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./application.yaml:/app/application.yaml
+      - ./src/main/resources/application.yaml:/app/application.yaml
     depends_on:
       - db
     restart: "always"
