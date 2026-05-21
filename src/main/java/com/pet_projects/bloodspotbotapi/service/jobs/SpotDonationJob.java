@@ -8,7 +8,9 @@ import com.pet_projects.bloodspotbotapi.model.UserSite;
 import com.pet_projects.bloodspotbotapi.repository.UserRepository;
 import com.pet_projects.bloodspotbotapi.service.SpotService;
 import com.pet_projects.bloodspotbotapi.service.UserService;
+import com.pet_projects.bloodspotbotapi.service.SiteErrorService;
 import com.pet_projects.bloodspotbotapi.service.exception.AuthFailedException;
+import com.pet_projects.bloodspotbotapi.service.exception.SiteUnavailableException;
 import com.pet_projects.bloodspotbotapi.service.dto.SpotDTO;
 import com.pet_projects.bloodspotbotapi.service.AuthService;
 import com.pet_projects.bloodspotbotapi.utils.SpotUtils;
@@ -34,6 +36,7 @@ public class SpotDonationJob {
     private final NewSpotHandler newSpotHandler;
     private final UserService userService;
     private final AuthUpdateHandler authUpdateHandler;
+    private final SiteErrorService siteErrorService;
 
     public String fetchSpotsFor(User user, UserSite site) {
         String cookieHeader = authService.getCookieHeader(user, site);
@@ -60,16 +63,22 @@ public class SpotDonationJob {
             log.info("Polling user start: {} (id={})", u.getEmail(), u.getId());
             List<UserSite> sites = u.getSite().getIndividualSites();
             List<UserSite> authFailedSites = new ArrayList<>();
+            List<UserSite> unavailableSites = new ArrayList<>();
             for (UserSite site : sites) {
                 try {
                     String html = fetchSpotsFor(u, site);
                     var elements = Jsoup.parse(html).getElementsByClass("dates-table__item table-item");
                     List<SpotDTO> findSpots = SpotUtils.getSpots(elements);
-                    log.info("Parsed page: user={}, site={}, nodesFound={}, spotDatesExtracted={}", u.getEmail(), site,
-                            elements.size(), findSpots.size());
+                    log.info("Parsed page: user={}, site={}, nodesFound={}, spotDatesExtracted={}", u.getEmail(), u.getId(),
+                            site, elements.size(), findSpots.size());
                     spotService.saveNewSpots(findSpots, u, site);
+                } catch (SiteUnavailableException e) {
+                    unavailableSites.add(site);
+                    siteErrorService.logSiteUnavailable(u, site, e.getMessage());
+                    log.warn("Site unavailable for user {} (id={}) on site {}, skipping: {}", u.getEmail(), u.getId(), site, e.getMessage());
                 } catch (AuthFailedException e) {
                     authFailedSites.add(site);
+                    siteErrorService.logAuthFailed(u, site, e.getMessage());
                     if (u.getSite().isAll()) {
                         log.warn("Auth failed for user {} (id={}) on site {}, skipping: {}", u.getEmail(), u.getId(), site, e.getMessage());
                     } else {
@@ -79,18 +88,21 @@ public class SpotDonationJob {
                         break;
                     }
                 } catch (Exception e) {
-                    log.error("Error while processing user {} on site {}: {}", u.getEmail(), site, e.getMessage(), e);
+                    unavailableSites.add(site);
+                    siteErrorService.logSiteUnavailable(u, site, e.getMessage());
+                    log.error("Error while processing user {} on site {}: {}", u.getEmail(), u.getId(), site, e.getMessage(), e);
                 }
             }
             if (userRepository.findById(u.getId()).isPresent()) {
                 if (u.getSite().isAll() && authFailedSites.size() == sites.size()) {
-                    log.warn("Auth failed for user {} (id={}) on ALL sites, notifying and logging out", u.getEmail(), u.getId());
+                    log.warn("Auth failed for user {} (id={}) on ALL sites (site unavailable on {}), notifying and logging out",
+                            u.getEmail(), u.getId(), unavailableSites.size());
                     authUpdateHandler.notifyAuthError(u.getId());
                     userService.deleteUser(u.getId());
                 } else {
                     spotService.cleanupOrphanedSpots(u, sites);
                     newSpotHandler.sendNewSpots(u);
-                    log.info("Polling user done: {} (id={})", u.getEmail(), u.getId());
+                    log.info("Polling user done: {} (id={}), unavailableSites={}", u.getEmail(), u.getId(), unavailableSites.size());
                 }
             }
         }
