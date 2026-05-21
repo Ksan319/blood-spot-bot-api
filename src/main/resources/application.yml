@@ -34,8 +34,11 @@ admin:
 
 auth:
   retry:
-    max-attempts: 3
-    delay-ms: 1000
+    max-attempts: 4
+    delay-ms: 1500
+
+errors:
+  last-count: 15
 
 commands:
   menus:

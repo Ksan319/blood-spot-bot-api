@@ -128,8 +128,8 @@ public class AuthService {
                         return cookies;
                 }
 
-                throw new AuthFailedException(
-                                "Auth failed for user " + email + ", account page does not contain expected elements.");
+                throw new SiteUnavailableException(
+                                "Account page for " + site.getDisplayName() + " does not contain expected elements. Site may be unavailable or slow to respond.");
         }
 
         private Map<String, String> preflightCollectCookies(String baseUrl) {
