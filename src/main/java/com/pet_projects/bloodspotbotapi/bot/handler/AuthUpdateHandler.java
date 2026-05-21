@@ -5,6 +5,7 @@ import com.pet_projects.bloodspotbotapi.bot.command.MainCommand;
 import com.pet_projects.bloodspotbotapi.bot.utils.TelegramUpdateUtils;
 import com.pet_projects.bloodspotbotapi.service.AuthService;
 import com.pet_projects.bloodspotbotapi.service.UserService;
+import com.pet_projects.bloodspotbotapi.service.exception.SiteUnavailableException;
 import com.pet_projects.bloodspotbotapi.service.session.UserState;
 import com.pet_projects.bloodspotbotapi.service.session.UserStateStorage;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +56,9 @@ public class AuthUpdateHandler implements UpdateHandler {
             } else {
                 menuDispatcher.sendMenu("authError", chatId, update);
             }
+        } catch (SiteUnavailableException ex) {
+            log.warn("Site {} is unavailable for user {}: {}", ex.getSiteName(), chatId, ex.getMessage());
+            menuDispatcher.sendMenu("siteUnavailable", chatId, update, ex.getSiteName());
         } catch (Exception ex) {
             log.error("Ошибка при попытке авторизации пользователя {}: {}", chatId, ex.getMessage(), ex);
             sendText(chatId, "⚠️ Произошла внутренняя ошибка. Попробуйте позже.", null);
