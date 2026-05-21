@@ -75,7 +75,7 @@ public class AuthService {
         private <T> T executeWithRetry(Supplier<T> action, String siteName) {
                 int attempts = retryProperties.getMaxAttempts();
                 int delayMs = retryProperties.getDelayMs();
-                Exception lastException = null;
+                RestClientException lastException = null;
 
                 for (int i = 0; i < attempts; i++) {
                         try {
@@ -96,7 +96,7 @@ public class AuthService {
                         }
                 }
 
-                throw new SiteUnavailableException(siteName);
+                throw new SiteUnavailableException(siteName, lastException);
         }
 
         private String getCookieHeader(String email, String password, UserSite site) {

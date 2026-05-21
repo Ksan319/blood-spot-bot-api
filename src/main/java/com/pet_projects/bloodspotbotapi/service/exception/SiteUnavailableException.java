@@ -9,6 +9,11 @@ public class SiteUnavailableException extends RuntimeException {
         this.siteName = siteName;
     }
 
+    public SiteUnavailableException(String siteName, Throwable cause) {
+        super("Site unavailable: " + siteName, cause);
+        this.siteName = siteName;
+    }
+
     public String getSiteName() {
         return siteName;
     }
