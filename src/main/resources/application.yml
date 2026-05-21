@@ -32,6 +32,11 @@ encryption:
 admin:
   password: ${ADMIN_PASSWORD}
 
+auth:
+  retry:
+    max-attempts: 3
+    delay-ms: 1000
+
 commands:
   menus:
     start:
@@ -60,6 +65,11 @@ commands:
       buttons:
         - label: "Вернуться на назад"
           callback: "/start"
+    siteUnavailable:
+      text: "Сайт медцентра %s недоступен. Попробуйте позднее."
+      buttons:
+        - label: "Назад к выбору клиники"
+          callback: "/site"
     chooseSite:
       text: "Выберите адрес центра крови, в который хотите записаться:"
       buttons:
