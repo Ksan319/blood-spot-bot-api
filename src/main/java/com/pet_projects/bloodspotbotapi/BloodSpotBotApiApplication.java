@@ -2,6 +2,7 @@ package com.pet_projects.bloodspotbotapi;
 
 import com.pet_projects.bloodspotbotapi.config.AuthRetryProperties;
 import com.pet_projects.bloodspotbotapi.config.EncryptionProperties;
+import com.pet_projects.bloodspotbotapi.config.ErrorLogProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -9,7 +10,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
-@EnableConfigurationProperties(value = {EncryptionProperties.class, AuthRetryProperties.class})
+@EnableConfigurationProperties(value = {EncryptionProperties.class, AuthRetryProperties.class, ErrorLogProperties.class})
 public class BloodSpotBotApiApplication {
 
         public static void main(String[] args) {
