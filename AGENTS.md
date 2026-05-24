@@ -1,104 +1,112 @@
-# AGENTS.md - Blood Spot Bot API
+# AGENTS.md
 
-## Project Overview
-Spring Boot 3.4.4 application (Java 21) — Telegram bot for blood donation spot monitoring.
-Uses WebFlux, Spring Data JPA, PostgreSQL, Telegram Bot API, and Jsoup for HTML scraping.
+Blood donation appointment monitoring Telegram bot. Polls donor-mos.ru sites for available slots and notifies subscribed users.
 
-## Build/Test Commands
+## Build & Run
 
 ```bash
-# Build
-./gradlew build
-
-# Run all tests
-./gradlew test
-
-# Run a single test class
-./gradlew test --tests "com.pet_projects.bloodspotbotapi.service.UserServiceTest"
-
-# Run a single test method
-./gradlew test --tests "com.pet_projects.bloodspotbotapi.service.UserServiceTest.testSaveOrUpdate_NewUser"
-
-# Run with verbose output
-./gradlew test --info
-
-# Run the application
-./gradlew bootRun
-
-# Clean build
-./gradlew clean build
-
-# Docker
-docker build -t blood_spot .
+./gradlew bootJar          # Build JAR
+./gradlew test             # Run tests
+./gradlew bootJar -x test  # Build without tests (Docker uses this)
 ```
 
+**Runtime requirements:**
+- Java 21
+- PostgreSQL database
+- All env vars from `.env.example` must be set
+
 ## Architecture
-Layered structure under `src/main/java/com/pet_projects/bloodspotbotapi/`:
-- `bot/` — Telegram bot, commands, handlers, keyboards
-- `service/` — Business logic (Auth, User, Spot), session state, scheduled jobs
-- `model/` — JPA entities (User, Spot, UserSite enum)
-- `repository/` — Spring Data JPA repositories
-- `client/` — HTTP clients (DonorMosOnlineClient via RestClient)
-- `utils/` — Static utilities (HtmlUtils, FormUtils, SpotUtils)
-- `config/` — Spring configuration
 
-## Code Style
+**Entry point:** `BloodDonationBot` → `UpdateDispatcher` → `UpdateHandler` implementations
 
-### Imports
-- No wildcard imports; all imports must be explicit
-- Order: Java standard → third-party → internal package
-- Use full qualified names sparingly (only for disambiguation)
+**Patterns:**
+- **Command pattern:** `BotCommand` interface with `command()`, `supports()`, `process()` for routing Telegram commands
+- **Strategy pattern:** `UpdateHandler` implementations selected by `supports()` method
+- **Scheduled jobs:** `@Scheduled` methods in `service/jobs/` (SpotDonationJob runs every 5 min)
 
-### Formatting
-- 4-space indentation (no tabs)
-- Max line length: ~120 chars
-- Braces on same line for methods/classes
+**Package structure:**
+```
+bot/
+  command/     # BotCommand implementations (StartCommand, AuthCommand, etc.)
+  handler/     # UpdateHandler implementations (CommandUpdateHandler, AuthUpdateHandler)
+  keyboard/    # Inline keyboard builder
+  client/      # TelegramClientWrapper
+client/donormos/  # External API client for donor-mos sites
+config/        # @ConfigurationProperties classes
+model/         # JPA entities (User, Spot, SiteError, Admin)
+repository/    # Spring Data JPA interfaces
+service/       # Business logic
+  jobs/        # Scheduled jobs
+  session/     # UserStateStorage (ConcurrentHashMap-based state)
+utils/         # EncryptionUtils, HtmlUtils, SpotUtils, FormUtils
+```
 
-### Naming Conventions
-- Classes: `PascalCase` (AuthService, UpdateDispatcher)
-- Methods/variables: `camelCase` (getCookieHeader, chatId)
-- Constants: `UPPER_SNAKE_CASE` (USER_AGENT)
-- Enums: `UPPER_SNAKE_CASE` (DONOR_MOS, AWAITING_AUTH_CREDENTIALS)
-- Test methods: `testMethodName_Scenario` (testSaveOrUpdate_NewUser)
+## Key Conventions
 
-### Dependency Injection
-- Use constructor injection exclusively via `@RequiredArgsConstructor` with `private final` fields
-- Never use field `@Autowired`
+**Lombok everywhere:** `@Data`, `@Builder`, `@RequiredArgsConstructor`, `@Slf4j` - expect generated getters/setters/constructors
 
-### Lombok Annotations
-- `@RequiredArgsConstructor` for DI
-- `@Slf4j` or `@Log4j2` for logging
-- `@Data`, `@Builder`, `@NoArgsConstructor` for DTOs/entities
-- `@SneakyThrows` sparingly (only for checked exceptions in command handlers)
+**Menu system:** Bot menus defined in `application.yml` under `commands.menus.*` - text and buttons loaded via `MenuService`
 
-### Error Handling
-- Create custom `RuntimeException` subclasses for domain errors (see `AuthFailedException`)
-- Use `log.warn()` / `log.error()` — never `e.printStackTrace()`
-- Catch specific exceptions when possible; avoid bare `catch (Exception e)` in new code
-- Use `Optional` for nullable returns; avoid `.get()` without `isPresent()` check
+**User state:** In-memory `ConcurrentHashMap` in `UserStateStorage` (not persistent) - states: `AWAITING_SITE_SELECTION`, `AWAITING_AUTH_CREDENTIALS`, `NONE`
 
-### Logging
-- Use `@Slf4j` and `log.info("msg: {}", value)` pattern
-- Log messages may be in Russian (existing convention in bot handlers)
-- Use `log.debug()` for detailed internal state
+**Password encryption:** AES/GCM/NoPadding with 32-char key from `ENCRYPTION_SECRET_KEY` env var - passwords stored encrypted in DB
 
-### Testing
-- JUnit 5 (`org.junit.jupiter`) with Mockito
-- Unit tests: `@ExtendWith(MockitoExtension.class)`, `@Mock`, manual constructor injection in `@BeforeEach`
-- Use `ArgumentCaptor`, `verify()`, static imports for assertions
-- Test class naming: `<ClassName>Test`
-- Test resource files go in `src/test/resources/` (note: existing typo `recources/`)
+**Site enum:** `UserSite` enum defines monitored locations: `DONOR_MOS` (Поликарпова), `DONOR_MOS_SAB` (Шаболовка), `DONOR_MOS_ZAR` (Царицыно), `ALL`
 
-### Spring Patterns
-- `@Service` for business logic, `@Component` for utilities/handlers
-- `@ConfigurationProperties(prefix = "...")` for externalized config
-- `@EnableScheduling` + `@Scheduled` for cron jobs
-- `@Value("${property}")` for simple config values
+## Authentication Flow (Complex)
 
-### Design Patterns
-- Chain of Responsibility: `UpdateDispatcher` → `List<UpdateHandler>`
-- Strategy: `BotCommand` interface with `supports()` / `process()`
-- Builder: `CustomKeyBoardBuilder`, Lombok `@Builder`
+The `AuthService.getCookieHeader()` performs multi-step cookie collection:
+1. Preflight GET requests to collect initial cookies
+2. JS cookie extraction from HTML (`HtmlUtils.extractJsCookieFromHtml`)
+3. JS redirect following (`HtmlUtils.extractJsRedirectFromHtml`)
+4. POST login with form data
+5. Verify auth by checking for `table-item__date` in account page HTML
 
-## CI/CD
-GitHub Actions: `.github/docker-image.yml` — builds and pushes Docker image on push to `main`.
+**Retry mechanism:** Network failures retry with `auth.retry.max-attempts` and `auth.retry.delay-ms` config
+
+## Environment Variables
+
+Required (see `.env.example`):
+- `DB_URL`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` - PostgreSQL connection
+- `BOT_TOKEN` - Telegram bot token
+- `BASE_URL`, `VALID_URL` - Donor site URLs
+- `ENCRYPTION_SECRET_KEY` - 32+ character encryption key
+- `ADMIN_PASSWORD` - Password for `/admin-auth` command
+- `SUPPORT_CHAT_URL` - URL for support button (in application.yml as `${SUPPORT_CHAT_URL}`)
+
+## Docker
+
+```bash
+docker-compose up -d        # Start app + PostgreSQL
+docker build -t blood-spot . # Build image
+```
+
+**Dockerfile:** Multi-stage build (Gradle 8.5.0-jdk21 → liberica-openjdk-alpine:21)
+
+**CI/CD:** GitHub Actions builds and pushes to `ksan319/blood_spot:latest` on main branch
+
+## Testing
+
+- JUnit 5 + Mockito (`@ExtendWith(MockitoExtension.class)`)
+- Tests mock repositories and services
+- No integration tests requiring running database
+
+## Scheduled Jobs
+
+`SpotDonationJob.pollAllUsers()` runs every 5 minutes (`0 */5 * * * *`):
+1. Fetches all subscribed users
+2. For each user/site: authenticate → fetch HTML → parse slots with Jsoup
+3. Save new slots, notify users via `NewSpotHandler`
+
+## Admin Commands
+
+- `/admin-auth <password>` - Register as admin
+- `/admin-stats` - Show user statistics
+- `/admin-errors` - Show recent site errors
+- `/admin-say <message>` - Broadcast message to all users
+
+Admin check: `AdminService.isAdmin(chatId)` queries `admins` table
+
+## Documentation
+
+`docs/` contains PlantUML sequence diagrams for commands and jobs - useful for understanding flows.
