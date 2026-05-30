@@ -35,33 +35,46 @@ public class AuthService {
         private final EncryptionProperties encryptionProperties;
         private final AuthRetryProperties retryProperties;
 
-        public boolean isCredentialValid(Long chatId, String username, String password) {
-                UserSite resolvedSite = userRepository.findById(chatId)
-                                .map(User::getSite)
-                                .orElse(UserSite.DONOR_MOS);
-                if (resolvedSite.isAll()) {
-                        resolvedSite = UserSite.DONOR_MOS;
-                }
-                final UserSite site = resolvedSite;
-                final String siteName = site.getDisplayName();
-                try {
-                        executeWithRetry(() -> getCookieHeader(username, password, site), siteName);
-                        return true;
-                } catch (SiteUnavailableException e) {
-                        log.warn("Site {} is unavailable after {} attempts for user {}",
-                                        siteName, retryProperties.getMaxAttempts(), username);
-                        throw e;
-                } catch (AuthFailedException e) {
-                        log.warn("Auth failed for {}: {}", username, e.getMessage());
-                        return false;
-                }
+    public boolean isCredentialValid(Long chatId, String username, String password) {
+        User user = userRepository.findById(chatId).orElse(null);
+        UserSite resolvedSite = user != null ? user.getSite() : UserSite.DONOR_MOS;
+
+        List<UserSite> sitesToCheck = resolvedSite.getIndividualSites();
+
+        // Перебираем все сайты: при первом успехе — сразу return true
+        boolean allUnavailable = true;
+
+        for (UserSite site : sitesToCheck) {
+            final String siteName = site.getDisplayName();
+            try {
+                executeWithRetry(() -> getCookieHeader(username, password, site), siteName);
+                return true;
+            } catch (SiteUnavailableException e) {
+                log.warn("Site {} is unavailable after {} attempts for user {}",
+                        siteName, retryProperties.getMaxAttempts(), username);
+                // Продолжаем проверять остальные сайты
+            } catch (AuthFailedException e) {
+                log.warn("Auth failed for {} on site {}: {}", username, siteName, e.getMessage());
+                allUnavailable = false;
+            } catch (RuntimeException e) {
+                log.error("Unexpected error checking site {} for user {}", siteName, username, e);
+                allUnavailable = false;
+            }
         }
 
-        public String getCookieHeader(User user) {
-                return getCookieHeader(user, user.getSite());
+        // Все сайты недоступны — пробрасываем исключение
+        if (allUnavailable) {
+            String unavailableSiteName = resolvedSite.isAll()
+                    ? UserSite.ALL.getDisplayName()
+                    : resolvedSite.getDisplayName();
+            throw new SiteUnavailableException(unavailableSiteName);
         }
 
-        public String getCookieHeader(User user, UserSite site) {
+        // Хотя бы один сайт доступен, но креды неверны
+        return false;
+    }
+
+    public String getCookieHeader(User user, UserSite site) {
                 String decryptedPassword;
                 try {
                         decryptedPassword = EncryptionUtils.decrypt(user.getPassword(), encryptionProperties.getSecretKey());
@@ -128,8 +141,8 @@ public class AuthService {
                         return cookies;
                 }
 
-                throw new SiteUnavailableException(
-                                "Account page for " + site.getDisplayName() + " does not contain expected elements. Site may be unavailable or slow to respond.");
+                throw new AuthFailedException(
+                                "Account page for " + site.getDisplayName() + " does not contain expected elements. Invalid credentials or site structure changed.");
         }
 
         private Map<String, String> preflightCollectCookies(String baseUrl) {

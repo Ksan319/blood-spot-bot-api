@@ -48,9 +48,10 @@ public class AuthServiceTest {
     private ResponseEntity<String> loginPageResp;
     private ResponseEntity<String> authResp;
     private ResponseEntity<String> accountResp;
+    private ResponseEntity<String> accountRespNoDate;
 
     @BeforeEach
-    public void setUp() {
+    void setUp() {
         encryptionProperties = new EncryptionProperties();
         encryptionProperties.setSecretKey(TEST_SECRET_KEY);
         retryProperties = new AuthRetryProperties();
@@ -73,12 +74,13 @@ public class AuthServiceTest {
                 .body("<html>Logged in</html>");
 
         accountResp = ResponseEntity.ok("<div class=\"table-item__date\">01.01.2025</div>");
+        accountRespNoDate = ResponseEntity.ok("<html><body>No dates here</body></html>");
 
         when(userRepository.findById(any())).thenReturn(Optional.empty());
     }
 
     @Test
-    public void testIsCredentialValid_SiteUnavailableAfterRetries_ThrowsSiteUnavailableException() {
+    void testIsCredentialValid_SiteUnavailableAfterRetries_ThrowsSiteUnavailableException() {
         Long chatId = 123L;
 
         when(client.getLoginPage(anyString(), any()))
@@ -92,7 +94,7 @@ public class AuthServiceTest {
     }
 
     @Test
-    public void testIsCredentialValid_AuthFailedException_NotRetried() {
+    void testIsCredentialValid_AuthFailedException_NotRetried() {
         Long chatId = 123L;
 
         when(client.getLoginPage(anyString(), any())).thenReturn(loginPageResp);
@@ -107,7 +109,7 @@ public class AuthServiceTest {
     }
 
     @Test
-    public void testIsCredentialValid_Success() {
+    void testIsCredentialValid_Success() {
         Long chatId = 123L;
 
         when(client.getLoginPage(anyString(), any())).thenReturn(loginPageResp);
@@ -121,9 +123,114 @@ public class AuthServiceTest {
     }
 
     @Test
-    public void testSiteUnavailableException_GetSiteName() {
-        SiteUnavailableException ex = new SiteUnavailableException("Шаболовка");
-        assertEquals("Шаболовка", ex.getSiteName());
-        assertTrue(ex.getMessage().contains("Шаболовка"));
+    void testIsCredentialValid_MissingTableItemDate_ReturnsFalse() {
+        Long chatId = 123L;
+
+        when(client.getLoginPage(anyString(), any())).thenReturn(loginPageResp);
+        when(client.getAbsoluteUrl(anyString(), any())).thenReturn(loginPageResp);
+        when(client.auth(any(AuthBody.class), anyString(), anyString())).thenReturn(authResp);
+        when(client.getAccountPage(anyString(), anyString())).thenReturn(accountRespNoDate);
+
+        boolean result = authService.isCredentialValid(chatId, "user@test.com", "password");
+
+        assertFalse(result);
     }
+
+    @Test
+    void testIsCredentialValid_AllSites_SuccessOnFirst() {
+        Long chatId = 123L;
+        User user = User.builder().id(chatId).site(UserSite.ALL).build();
+        when(userRepository.findById(chatId)).thenReturn(Optional.of(user));
+
+        when(client.getLoginPage(anyString(), any())).thenReturn(loginPageResp);
+        when(client.getAbsoluteUrl(anyString(), any())).thenReturn(loginPageResp);
+        when(client.auth(any(AuthBody.class), anyString(), anyString())).thenReturn(authResp);
+        when(client.getAccountPage(anyString(), anyString())).thenReturn(accountResp);
+
+        boolean result = authService.isCredentialValid(chatId, "user@test.com", "password");
+
+        assertTrue(result);
+        // Should stop after first success, so only 1 site checked
+        verify(client, times(1)).getAccountPage(anyString(), anyString());
+    }
+
+    @Test
+    void testIsCredentialValid_AllSites_AllUnavailable_ThrowsSiteUnavailableException() {
+        Long chatId = 123L;
+        User user = User.builder().id(chatId).site(UserSite.ALL).build();
+        when(userRepository.findById(chatId)).thenReturn(Optional.of(user));
+
+        when(client.getLoginPage(anyString(), any()))
+                .thenThrow(new RestClientException("Connection refused"));
+
+        SiteUnavailableException ex = assertThrows(SiteUnavailableException.class,
+                () -> authService.isCredentialValid(chatId, "user@test.com", "password"));
+
+        assertEquals("Все медцентры", ex.getSiteName());
+        // 3 sites × 3 retries = 9 calls
+        verify(client, times(9)).getLoginPage(anyString(), any());
+    }
+
+    @Test
+    void testIsCredentialValid_AllSites_AllAuthFailed_ReturnsFalse() {
+        Long chatId = 123L;
+        User user = User.builder().id(chatId).site(UserSite.ALL).build();
+        when(userRepository.findById(chatId)).thenReturn(Optional.of(user));
+
+        when(client.getLoginPage(anyString(), any())).thenReturn(loginPageResp);
+        when(client.getAbsoluteUrl(anyString(), any())).thenReturn(loginPageResp);
+        when(client.auth(any(AuthBody.class), anyString(), anyString()))
+                .thenThrow(new AuthFailedException("Bad credentials"));
+
+        boolean result = authService.isCredentialValid(chatId, "user@test.com", "password");
+
+        assertFalse(result);
+        // All 3 sites checked
+        verify(client, times(3)).auth(any(AuthBody.class), anyString(), anyString());
+    }
+
+    @Test
+    void testIsCredentialValid_AllSites_MixedUnavailableAndAuthFailed_ReturnsFalse() {
+        Long chatId = 123L;
+        User user = User.builder().id(chatId).site(UserSite.ALL).build();
+        when(userRepository.findById(chatId)).thenReturn(Optional.of(user));
+
+        // First site: unavailable
+        when(client.getLoginPage(eq(UserSite.DONOR_MOS.getBaseUrl()), any()))
+                .thenThrow(new RestClientException("Connection refused"));
+        // Second site: auth failed
+        when(client.getLoginPage(eq(UserSite.DONOR_MOS_SAB.getBaseUrl()), any())).thenReturn(loginPageResp);
+        when(client.getAbsoluteUrl(anyString(), any())).thenReturn(loginPageResp);
+        when(client.auth(any(AuthBody.class), eq(UserSite.DONOR_MOS_SAB.getBaseUrl()), anyString()))
+                .thenThrow(new AuthFailedException("Bad credentials"));
+        // Third site: auth failed
+        when(client.getLoginPage(eq(UserSite.DONOR_MOS_ZAR.getBaseUrl()), any())).thenReturn(loginPageResp);
+        when(client.auth(any(AuthBody.class), eq(UserSite.DONOR_MOS_ZAR.getBaseUrl()), anyString()))
+                .thenThrow(new AuthFailedException("Bad credentials"));
+
+        boolean result = authService.isCredentialValid(chatId, "user@test.com", "password");
+
+        assertFalse(result);
+    }
+
+    @Test
+    void testIsCredentialValid_AllSites_MixedUnavailableAndSuccess_ReturnsTrue() {
+        Long chatId = 123L;
+        User user = User.builder().id(chatId).site(UserSite.ALL).build();
+        when(userRepository.findById(chatId)).thenReturn(Optional.of(user));
+
+        // First site: unavailable
+        when(client.getLoginPage(eq(UserSite.DONOR_MOS.getBaseUrl()), any()))
+                .thenThrow(new RestClientException("Connection refused"));
+        // Second site: success
+        when(client.getLoginPage(eq(UserSite.DONOR_MOS_SAB.getBaseUrl()), any())).thenReturn(loginPageResp);
+        when(client.getAbsoluteUrl(anyString(), any())).thenReturn(loginPageResp);
+        when(client.auth(any(AuthBody.class), eq(UserSite.DONOR_MOS_SAB.getBaseUrl()), anyString())).thenReturn(authResp);
+        when(client.getAccountPage(eq(UserSite.DONOR_MOS_SAB.getBaseUrl()), anyString())).thenReturn(accountResp);
+
+        boolean result = authService.isCredentialValid(chatId, "user@test.com", "password");
+
+        assertTrue(result);
+    }
+
 }
