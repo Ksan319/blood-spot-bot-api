@@ -15,6 +15,8 @@ Blood donation appointment monitoring Telegram bot. Polls donor-mos.ru sites for
 - PostgreSQL database
 - All env vars from `.env.example` must be set
 
+**Important:** `DB_URL` in `.env` should NOT have quotes around the entire value. Docker compose mounts `.env` directly, and quoting breaks JDBC.
+
 ## Architecture
 
 **Entry point:** `BloodDonationBot` → `UpdateDispatcher` → `UpdateHandler` implementations
@@ -66,13 +68,15 @@ The `AuthService.getCookieHeader()` performs multi-step cookie collection:
 
 ## Environment Variables
 
-Required (see `.env.example`):
-- `DB_URL`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` - PostgreSQL connection
-- `BOT_TOKEN` - Telegram bot token
-- `BASE_URL`, `VALID_URL` - Donor site URLs
-- `ENCRYPTION_SECRET_KEY` - 32+ character encryption key
+Required (see `.env` / `.env.example`):
+- `DB_URL` - PostgreSQL JDBC URL (use service name `db` for Docker)
+- `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` - PostgreSQL credentials
+- `BOT_TOKEN` - Telegram bot token (`.env.example` incorrectly uses `TELEGRAM_BOT_TOKEN`; use `BOT_TOKEN`)
+- `BASE_URL`, `VALID_URL` - Donor site URLs (legacy, not used for per-user sites)
+- `SUPPORT_CHAT_URL` - URL for support button (required in `application.yml`)
+- `ENCRYPTION_SECRET_KEY` - 32+ character AES key
 - `ADMIN_PASSWORD` - Password for `/admin-auth` command
-- `SUPPORT_CHAT_URL` - URL for support button (in application.yml as `${SUPPORT_CHAT_URL}`)
+- `DONATION_URL` - URL for donation/support button
 
 ## Docker
 
@@ -83,13 +87,12 @@ docker build -t blood-spot . # Build image
 
 **Dockerfile:** Multi-stage build (Gradle 8.5.0-jdk21 → liberica-openjdk-alpine:21)
 
-**CI/CD:** GitHub Actions builds and pushes to `ksan319/blood_spot:latest` on main branch
-
 ## Testing
 
 - JUnit 5 + Mockito (`@ExtendWith(MockitoExtension.class)`)
 - Tests mock repositories and services
 - No integration tests requiring running database
+- Tests run with `-Djava.net.preferIPv4Stack=true` (configured in `build.gradle`)
 
 ## Scheduled Jobs
 
