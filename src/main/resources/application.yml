@@ -95,5 +95,7 @@ commands:
       buttons:
         - label: "Записаться"
           callback: "%2$s"
+        - label: "---"
+          callback: "ROW"
         - label: "Поблагодарить котика"
           callback: ${DONATION_URL}
